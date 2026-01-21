@@ -3,11 +3,11 @@
     "user_id": "42103f59-76f1-431c-9262-81b80129d9b",
     "goals": [
       {
-        "id": "emergency_fund",
-        "name": "Emergency Fund",
-        "target_amount": 5000.0,
+        "id": "extra_savings",
+        "name": "Extra Savings",
+        "target_amount": null,
         "current_amount": 3200.0,
-        "target_date": "2025-06-30",
+        "target_date": null,
         "monthly_contribution": 300.0
       },
       {
