@@ -1,0 +1,84 @@
+<div class="transactions-container">
+  <div class="transactions-header">
+    <h3>All Transactions</h3>
+
+    <div class="controls">
+      <div class="filter-group">
+        <button
+          class="filter-button"
+          [class.active]="filterType === 'all'"
+          (click)="setFilter('all')"
+        >
+          All
+        </button>
+        <button
+          class="filter-button"
+          [class.active]="filterType === 'income'"
+          (click)="setFilter('income')"
+        >
+          Income
+        </button>
+        <button
+          class="filter-button"
+          [class.active]="filterType === 'expense'"
+          (click)="setFilter('expense')"
+        >
+          Expense
+        </button>
+      </div>
+
+      <div class="sort-group">
+        <select [value]="sortBy" (change)="onSortChange($event)">
+          <option value="date">Sort by Date</option>
+          <option value="amount">Sort by Amount</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="isLoading" class="loading-state">
+    <div class="skeleton-row"></div>
+    <div class="skeleton-row"></div>
+    <div class="skeleton-row"></div>
+  </div>
+
+  <div *ngIf="!isLoading" class="transactions-list">
+    <div
+      *ngIf="getFilteredTransactions().length === 0"
+      class="empty-state"
+    >
+      <span class="empty-icon">📭</span>
+      <p>No transactions found</p>
+    </div>
+
+    <div
+      *ngFor="let transaction of getFilteredTransactions()"
+      class="transaction-row"
+      [class]="'row-' + transaction.type"
+    >
+      <div class="row-icon">
+        {{ transaction.type === 'income' ? '💵' : '💸' }}
+      </div>
+
+      <div class="row-details">
+        <div class="row-description">{{ transaction.description }}</div>
+        <div class="row-category">{{ transaction.category }}</div>
+      </div>
+
+      <div class="row-date">
+        {{ formatDate(transaction.date) }}
+      </div>
+
+      <div class="row-amount" [class]="'amount-' + transaction.type">
+        {{ transaction.type === 'income' ? '+' : '-' }}{{ formatCurrency(transaction.amount) }}
+      </div>
+
+      <span
+        class="row-status"
+        [class]="'status-' + transaction.status"
+      >
+        {{ transaction.status }}
+      </span>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,31 @@
+<header class="app-header">
+  <div class="header-left">
+    <div class="logo">
+      <span class="logo-icon">₿</span>
+      <h2>FinanceHub</h2>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="user-menu-container">
+      <button class="user-button" (click)="toggleUserMenu()">
+        <img
+          *ngIf="currentUser?.avatar"
+          [src]="currentUser?.avatar"
+          alt="User Avatar"
+          class="avatar"
+        />
+        <span *ngIf="currentUser?.name" class="user-name">{{ currentUser?.name }}</span>
+        <span class="dropdown-icon">▼</span>
+      </button>
+
+      <div class="user-menu" *ngIf="showUserMenu" [@fadeInOut]>
+        <a href="#" class="menu-item">Profile Settings</a>
+        <a href="#" class="menu-item">Security</a>
+        <a href="#" class="menu-item">Preferences</a>
+        <div class="menu-divider"></div>
+        <button class="menu-item logout-item" (click)="onLogout()">Logout</button>
+      </div>
+    </div>
+  </div>
+</header>
