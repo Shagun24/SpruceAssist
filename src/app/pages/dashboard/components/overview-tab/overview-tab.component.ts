@@ -1,11 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FinanceService, DashboardData } from '../../../../services/finance.service';
+import { ChatTabComponent } from '../chat-tab/chat-tab.component';
 
 @Component({
   selector: 'app-overview-tab',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ChatTabComponent],
   templateUrl: './overview-tab.component.html',
   styleUrls: ['./overview-tab.component.scss'],
 })

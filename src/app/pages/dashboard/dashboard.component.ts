@@ -5,11 +5,12 @@ import { AuthService, User } from '../../services/auth.service';
 import { HeaderComponent } from './components/header/header.component';
 import { OverviewTabComponent } from './components/overview-tab/overview-tab.component';
 import { TransactionsTabComponent } from './components/transactions-tab/transactions-tab.component';
+import { ChatTabComponent } from './components/chat-tab/chat-tab.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, HeaderComponent, OverviewTabComponent, TransactionsTabComponent],
+  imports: [CommonModule, HeaderComponent, OverviewTabComponent, TransactionsTabComponent, ChatTabComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
 })

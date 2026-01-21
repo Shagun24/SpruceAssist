@@ -38,8 +38,8 @@
               "budgets": [
                 {
                   "type": "bundle",
-                  "maximumWarningInBytes": 500000,
-                  "maximumErrorInBytes": 1000000
+                  "maximumWarning": "500kb",
+                  "maximumError": "1mb"
                 }
               ],
               "outputHashing": "all"

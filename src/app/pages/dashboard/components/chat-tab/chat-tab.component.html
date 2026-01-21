@@ -1,0 +1,110 @@
+<div class="chat-container">
+  <div class="chat-header">
+    <div class="header-content">
+      <span class="chat-icon">💬</span>
+      <h3>Financial Advisor Chat</h3>
+      <span class="status-badge">AI-Powered</span>
+    </div>
+    <p class="subtitle">Get personalized financial advice based on your data</p>
+  </div>
+
+  <div class="chat-messages" #chatMessages>
+    <div
+      *ngFor="let message of messages"
+      class="message"
+      [class.user-message]="message.sender === 'user'"
+      [class.assistant-message]="message.sender === 'assistant'"
+    >
+      <div class="message-avatar">
+        {{ message.sender === 'user' ? '👤' : '🤖' }}
+      </div>
+      <div class="message-content">
+        <div class="message-text">{{ message.content }}</div>
+        <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+      </div>
+    </div>
+
+    <div *ngIf="isLoading" class="message assistant-message">
+      <div class="message-avatar">🤖</div>
+      <div class="message-content">
+        <div class="typing-indicator">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-input-container">
+    <div class="suggested-prompts" *ngIf="messages.length <= 1">
+      <button
+        class="prompt-chip"
+        (click)="userInput = 'How can I improve my savings rate?'; sendMessage()"
+      >
+        💰 Improve savings
+      </button>
+      <button
+        class="prompt-chip"
+        (click)="userInput = 'Should I invest or pay off debt first?'; sendMessage()"
+      >
+        📊 Investment advice
+      </button>
+      <button
+        class="prompt-chip"
+        (click)="userInput = 'How much should I have in my emergency fund?'; sendMessage()"
+      >
+        🚨 Emergency fund
+      </button>
+      <button
+        class="prompt-chip"
+        (click)="userInput = 'Help me create a budget'; sendMessage()"
+      >
+        📋 Budget help
+      </button>
+      <button
+        class="prompt-chip"
+        (click)="userInput = 'Can I afford to buy a house?'; sendMessage()"
+      >
+        🏠 Home buying
+      </button>
+      <button
+        class="prompt-chip"
+        (click)="userInput = 'How do I improve my credit score?'; sendMessage()"
+      >
+        💳 Credit score
+      </button>
+      <button
+        class="prompt-chip"
+        (click)="userInput = 'What side hustles can I start?'; sendMessage()"
+      >
+        💼 Side hustles
+      </button>
+      <button
+        class="prompt-chip"
+        (click)="userInput = 'Should I invest in cryptocurrency?'; sendMessage()"
+      >
+        ₿ Crypto advice
+      </button>
+    </div>
+
+    <form class="chat-input-form" (submit)="sendMessage(); $event.preventDefault()">
+      <input
+        type="text"
+        class="chat-input"
+        placeholder="Ask me anything about your finances..."
+        [(ngModel)]="userInput"
+        name="userInput"
+        [disabled]="isLoading"
+        autocomplete="off"
+      />
+      <button
+        type="submit"
+        class="send-button"
+        [disabled]="!userInput.trim() || isLoading"
+      >
+        <span class="send-icon">➤</span>
+      </button>
+    </form>
+  </div>
+</div>
