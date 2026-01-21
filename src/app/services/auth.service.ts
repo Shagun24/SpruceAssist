@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 export interface User {
   id: string;
@@ -23,29 +25,47 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<User | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
 
-  constructor() {}
+  constructor(private http: HttpClient) {}
 
   login(credentials: LoginCredentials): Observable<User> {
-    return new Observable((observer) => {
-      // Simulate login delay
-      setTimeout(() => {
-        const user: User = {
-          id: '1',
-          name: 'John Doe',
-          email: credentials.email,
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + credentials.email,
-        };
+    return this.http
+      .get<any[]>('assets/mock-data/users.json')
+      .pipe(
+        map((users) => {
+          const matched = users.find(
+            (u) =>
+              u.email_id === credentials.email &&
+              u.login_password === credentials.password &&
+              (u.is_active === undefined || u.is_active === true)
+          );
 
-        localStorage.setItem('authToken', 'mock-token-' + Date.now());
-        localStorage.setItem('currentUser', JSON.stringify(user));
+          if (!matched) {
+            throw new Error('Invalid credentials');
+          }
 
-        this.currentUserSubject.next(user);
-        this.isLoggedInSubject.next(true);
+          const name =
+            matched.preferred_name ||
+            [matched.first_name, matched.last_name].filter(Boolean).join(' ') ||
+            credentials.email;
 
-        observer.next(user);
-        observer.complete();
-      }, 1000);
-    });
+          const user: User = {
+            id: matched.user_id ?? '1',
+            name,
+            email: matched.email_id ?? credentials.email,
+            avatar:
+              'https://api.dicebear.com/7.x/avataaars/svg?seed=' +
+              (matched.email_id ?? credentials.email),
+          };
+
+          localStorage.setItem('authToken', 'mock-token-' + Date.now());
+          localStorage.setItem('currentUser', JSON.stringify(user));
+
+          this.currentUserSubject.next(user);
+          this.isLoggedInSubject.next(true);
+
+          return user;
+        })
+      );
   }
 
   logout(): void {

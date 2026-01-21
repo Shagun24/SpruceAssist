@@ -9,6 +9,7 @@
     "social_security_number": "123456789",
     "is_journey_completed": 1,
     "email_id": "alice.johnson@example.com",
+    "login_password": "alice@123",
     "monthly_deposit_amount_id": 1,
     "occupation_id": 10,
     "ping_id": "9c517ad1-1aa1-45e7-9f01-9e717d032889",
