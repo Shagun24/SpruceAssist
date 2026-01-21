@@ -66,7 +66,7 @@
 .logo-svg {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 20px 60px rgba($color-primary-accent, 0.4));
+  filter: drop-shadow(0 20px 60px rgba(108, 139, 255, 0.4));
 }
 
 .logo-text {
@@ -117,7 +117,7 @@
 .loading-bar {
   width: 300px;
   height: 4px;
-  background: rgba($color-text-primary, 0.1);
+  background: rgba(232, 238, 255, 0.1);
   border-radius: 2px;
   overflow: hidden;
   animation: fadeInUp 1s ease-out 1.2s both;
@@ -125,10 +125,10 @@
 
 .loading-progress {
   height: 100%;
-  background: linear-gradient(90deg, $color-primary-accent 0%, $color-primary-hover 100%);
+  background: linear-gradient(90deg, #6C8BFF 0%, #8FA3FF 100%);
   border-radius: 2px;
   animation: loadProgress 5s ease-out forwards;
-  box-shadow: 0 0 20px rgba($color-primary-accent, 0.6);
+  box-shadow: 0 0 20px rgba(108, 139, 255, 0.6);
 }
 
 @keyframes loadProgress {
