@@ -16,7 +16,7 @@ import { ChatTabComponent } from './components/chat-tab/chat-tab.component';
 })
 export class DashboardComponent implements OnInit {
   currentUser: User | null = null;
-  activeTab: 'overview' | 'transactions' | 'chat' = 'overview';
+  activeTab: 'overview' | 'transactions' = 'overview';
 
   constructor(private authService: AuthService, private router: Router) {}
 
@@ -29,7 +29,7 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  setActiveTab(tab: 'overview' | 'transactions' | 'chat'): void {
+  setActiveTab(tab: 'overview' | 'transactions'): void {
     this.activeTab = tab;
   }
 

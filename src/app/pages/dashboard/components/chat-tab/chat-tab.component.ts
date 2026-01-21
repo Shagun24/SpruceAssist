@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FinanceService, DashboardData } from '../../../../services/finance.service';
@@ -17,11 +17,13 @@ export interface ChatMessage {
   templateUrl: './chat-tab.component.html',
   styleUrls: ['./chat-tab.component.scss'],
 })
-export class ChatTabComponent implements OnInit {
+export class ChatTabComponent implements OnInit, AfterViewChecked {
+  @ViewChild('chatMessages') private chatMessagesContainer!: ElementRef;
   messages: ChatMessage[] = [];
   userInput: string = '';
   isLoading: boolean = false;
   dashboardData: DashboardData | null = null;
+  private shouldScrollToBottom = false;
 
   constructor(private financeService: FinanceService) {}
 
@@ -38,6 +40,25 @@ export class ChatTabComponent implements OnInit {
       'Hello! I\'m your AI financial advisor. I can help you with budgeting, savings, investments, and financial planning based on your current financial data. How can I assist you today?',
       'assistant'
     );
+  }
+
+  ngAfterViewChecked(): void {
+    if (this.shouldScrollToBottom) {
+      this.scrollToBottom();
+    }
+  }
+
+  private scrollToBottom(): void {
+    try {
+      if (this.chatMessagesContainer) {
+        const element = this.chatMessagesContainer.nativeElement;
+        element.scrollTop = element.scrollHeight;
+      }
+      this.shouldScrollToBottom = false;
+    } catch (err) {
+      console.error('Error scrolling to bottom:', err);
+      this.shouldScrollToBottom = false;
+    }
   }
 
   sendMessage(): void {
@@ -65,6 +86,7 @@ export class ChatTabComponent implements OnInit {
       sender,
       timestamp: new Date(),
     });
+    this.shouldScrollToBottom = true;
   }
 
   private generateFinancialAdvice(userMessage: string): string {

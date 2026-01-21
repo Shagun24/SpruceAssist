@@ -1,12 +1,9 @@
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100%; // Changed from fixed height to fill parent
-  min-height: 600px; // Minimum height
+  height: 100%;
   background: linear-gradient(135deg, #1B2338 0%, #0B0F1A 100%);
-  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .chat-header {
@@ -53,10 +50,12 @@
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  scroll-behavior: smooth;
 
   &::-webkit-scrollbar {
     width: 6px;
