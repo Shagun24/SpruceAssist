@@ -1,0 +1,37 @@
+[
+  {
+    "user_id": "42103f59-76f1-431c-9262-81b80129d9b9",
+    "first_name": "Alice",
+    "last_name": "Johnson",
+    "phone": "5551230001",
+    "date_of_birth": "1990-04-15",
+    "created_at": "2024-11-01T10:15:00",
+    "social_security_number": "123456789",
+    "is_journey_completed": 1,
+    "email_id": "alice.johnson@example.com",
+    "monthly_deposit_amount_id": 1,
+    "occupation_id": 10,
+    "ping_id": "9c517ad1-1aa1-45e7-9f01-9e717d032889",
+    "is_overdraft_eligible": 1,
+    "diy_offer": "Y",
+    "urban_ft_user_id": 1000000001,
+    "ping_one_id": "f23985ab-306c-421e-85c1-6f9ad2666f6f",
+    "profile_last_updated_at": "2025-01-10T09:00:00-05:00",
+    "preferred_name": "Alice",
+    "is_active": true,
+    "modified_at": "2025-01-10T09:00:00-05:00",
+    "last_login_at": "2025-01-15T18:30:00-05:00",
+    "modified_user_type_id": 1,
+    "address": {
+      "address_id": 1,
+      "city": "Springfield",
+      "postal_code": "62704",
+      "country": "US",
+      "created_at": "2024-11-01T10:15:00",
+      "address_line1": "123 Maple Street",
+      "address_line2": "Apt 4B",
+      "modified_at": "2025-01-10T09:00:00-05:00",
+      "state": "IL"
+    }
+  }
+]
