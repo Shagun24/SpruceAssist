@@ -439,3 +439,16 @@
     }
   }
 }
+
+// ====================================
+// CHAT SECTION
+// ====================================
+
+.chat-section {
+  margin-top: $spacing-xl;
+  
+  ::ng-deep .chat-container {
+    height: 700px; // Make it taller
+    max-height: 700px;
+  }
+}
