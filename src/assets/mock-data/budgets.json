@@ -1,0 +1,39 @@
+[
+  {
+    "user_id": "42103f59-76f1-431c-9262-81b80129d9b",
+    "budgets": {
+      "dining": {
+        "monthly_limit": 500.0,
+        "description": "Restaurants and takeout"
+      },
+      "groceries": {
+        "monthly_limit": 600.0,
+        "description": "Supermarket and food shopping"
+      },
+      "travel": {
+        "monthly_limit": 300.0,
+        "description": "Flights, hotels, and trips"
+      },
+      "bills": {
+        "monthly_limit": 1200.0,
+        "description": "Rent, utilities, subscriptions"
+      },
+      "entertainment": {
+        "monthly_limit": 200.0,
+        "description": "Movies, concerts, events"
+      },
+      "shopping": {
+        "monthly_limit": 350.0,
+        "description": "Clothing, electronics, misc"
+      },
+      "healthcare": {
+        "monthly_limit": 200.0,
+        "description": "Medical expenses and pharmacy"
+      },
+      "transportation": {
+        "monthly_limit": 300.0,
+        "description": "Gas, car maintenance, parking"
+      }
+    }
+  }
+]
