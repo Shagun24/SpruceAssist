@@ -1,0 +1,134 @@
+<div class="overview-container">
+  <div *ngIf="isLoading" class="loading-state">
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+  </div>
+
+  <div *ngIf="!isLoading && dashboardData" class="overview-content">
+    <!-- Main Balance Card -->
+    <div class="balance-card card-elevated">
+      <div class="card-header">
+        <span class="card-label">Total Balance</span>
+        <span class="card-icon">💰</span>
+      </div>
+      <div class="balance-amount">
+        {{ formatCurrency(dashboardData.totalBalance) }}
+      </div>
+      <div class="balance-footer">
+        <span class="text-success">↑ 2.5% from last month</span>
+      </div>
+    </div>
+
+    <!-- Income & Expense Cards -->
+    <div class="cards-grid">
+      <div class="card card-income">
+        <div class="card-icon">📈</div>
+        <div class="card-content">
+          <span class="card-label">Monthly Income</span>
+          <span class="card-value text-success">{{ formatCurrency(dashboardData.monthlyIncome) }}</span>
+        </div>
+      </div>
+
+      <div class="card card-expense">
+        <div class="card-icon">📉</div>
+        <div class="card-content">
+          <span class="card-label">Monthly Expense</span>
+          <span class="card-value text-danger">{{ formatCurrency(dashboardData.monthlyExpense) }}</span>
+        </div>
+      </div>
+
+      <div class="card card-savings">
+        <div class="card-icon">🏦</div>
+        <div class="card-content">
+          <span class="card-label">Available to Save</span>
+          <span class="card-value text-secondary">
+            {{ formatCurrency(dashboardData.monthlyIncome - dashboardData.monthlyExpense) }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Expense Split Section -->
+    <div class="expense-split-container">
+      <div class="section-header">
+        <h3>Expense Breakdown</h3>
+      </div>
+
+      <div class="expense-split-chart">
+        <div class="chart-center">
+          <div class="chart-value">
+            <span class="total-expenses">{{ formatCurrency(dashboardData.monthlyExpense) }}</span>
+            <span class="label">Total Spent</span>
+          </div>
+        </div>
+
+        <svg class="donut-chart" viewBox="0 0 200 200">
+          <circle
+            class="donut-base"
+            cx="100"
+            cy="100"
+            r="90"
+          />
+          <!-- Pie slices are drawn with dynamic stroke-dasharray -->
+        </svg>
+      </div>
+
+      <div class="expense-list">
+        <div
+          *ngFor="let expense of dashboardData.expenseSplit"
+          class="expense-item"
+        >
+          <div class="expense-info">
+            <span class="expense-name">{{ expense.category }}</span>
+            <span class="expense-percentage">{{ expense.percentage }}%</span>
+          </div>
+          <div class="expense-bar">
+            <div
+              class="expense-bar-fill"
+              [style.width.%]="expense.percentage"
+            ></div>
+          </div>
+          <span class="expense-amount">{{ formatCurrency(expense.amount) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity Section -->
+    <div class="recent-activity-container">
+      <div class="section-header">
+        <h3>Recent Activity</h3>
+      </div>
+
+      <div class="activity-list">
+        <div
+          *ngFor="let transaction of dashboardData.transactions.slice(0, 5)"
+          class="activity-item"
+        >
+          <div class="activity-icon" [class]="'icon-' + transaction.type">
+            {{ transaction.type === 'income' ? '💵' : '💸' }}
+          </div>
+
+          <div class="activity-details">
+            <div class="activity-description">{{ transaction.description }}</div>
+            <div class="activity-category">{{ transaction.category }}</div>
+          </div>
+
+          <div class="activity-amount" [class]="'amount-' + transaction.type">
+            {{ transaction.type === 'income' ? '+' : '-' }}{{ formatCurrency(transaction.amount) }}
+          </div>
+
+          <span
+            class="activity-status"
+            [class]="'status-' + transaction.status"
+          >
+            {{ transaction.status }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Financial Advisor Chat -->
+    <div class="chat-section">
+      <app-chat-tab></app-chat-tab>
+    </div>

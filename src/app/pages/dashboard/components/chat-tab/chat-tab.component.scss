@@ -1,3 +1,10 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;
@@ -7,6 +14,7 @@
 }
 
 .chat-header {
+  flex-shrink: 0;
   padding: 24px;
   background: rgba(108, 139, 255, 0.08);
   border-bottom: 1px solid rgba(108, 139, 255, 0.15);
@@ -48,8 +56,9 @@
 }
 
 .chat-messages {
-  flex: 1;
-  overflow-y: auto;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: scroll;
   overflow-x: hidden;
   padding: 24px;
   display: flex;
@@ -161,6 +170,7 @@
 }
 
 .chat-input-container {
+  flex-shrink: 0;
   padding: 20px 24px;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid rgba(255, 255, 255, 0.08);

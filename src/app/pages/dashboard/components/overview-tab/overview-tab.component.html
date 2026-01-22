@@ -6,129 +6,140 @@
   </div>
 
   <div *ngIf="!isLoading && dashboardData" class="overview-content">
-    <!-- Main Balance Card -->
-    <div class="balance-card card-elevated">
-      <div class="card-header">
-        <span class="card-label">Total Balance</span>
-        <span class="card-icon">💰</span>
-      </div>
-      <div class="balance-amount">
-        {{ formatCurrency(dashboardData.totalBalance) }}
-      </div>
-      <div class="balance-footer">
-        <span class="text-success">↑ 2.5% from last month</span>
-      </div>
-    </div>
-
-    <!-- Income & Expense Cards -->
-    <div class="cards-grid">
-      <div class="card card-income">
-        <div class="card-icon">📈</div>
-        <div class="card-content">
-          <span class="card-label">Monthly Income</span>
-          <span class="card-value text-success">{{ formatCurrency(dashboardData.monthlyIncome) }}</span>
+    <!-- Top Row: Balance, Income, Expense -->
+    <div class="top-row">
+      <!-- Main Balance Card -->
+      <div class="balance-card">
+        <div class="balance-label">Total balance</div>
+        <div class="balance-amount">{{formatNumber(dashboardData.totalBalance)}}<sup>$</sup></div>
+        <div class="balance-change">+{{formatCurrency(2456)}} revenue from last month</div>
+        <div class="balance-actions">
+          <button class="btn-transfer">Transfer</button>
+          <button class="btn-topup">Top Up</button>
         </div>
       </div>
 
-      <div class="card card-expense">
-        <div class="card-icon">📉</div>
-        <div class="card-content">
-          <span class="card-label">Monthly Expense</span>
-          <span class="card-value text-danger">{{ formatCurrency(dashboardData.monthlyExpense) }}</span>
+      <!-- Income Card -->
+      <div class="stat-card stat-income">
+        <div class="stat-label">Income</div>
+        <div class="stat-value">+{{formatNumber(dashboardData.monthlyIncome/4)}}<sup>$</sup></div>
+        <div class="stat-footer">
+          <span>This week's income</span>
+          <span class="badge-up">+15.7%</span>
         </div>
       </div>
 
-      <div class="card card-savings">
-        <div class="card-icon">🏦</div>
-        <div class="card-content">
-          <span class="card-label">Available to Save</span>
-          <span class="card-value text-secondary">
-            {{ formatCurrency(dashboardData.monthlyIncome - dashboardData.monthlyExpense) }}
-          </span>
+      <!-- Expense Card -->
+      <div class="stat-card stat-expense">
+        <div class="stat-label">Expense</div>
+        <div class="stat-value">-{{formatNumber(dashboardData.monthlyExpense/4)}}<sup>$</sup></div>
+        <div class="stat-footer">
+          <span>This week's expense</span>
+          <span class="badge-down">-10.7%</span>
         </div>
       </div>
     </div>
 
-    <!-- Expense Split Section -->
-    <div class="expense-split-container">
-      <div class="section-header">
-        <h3>Expense Breakdown</h3>
-      </div>
-
-      <div class="expense-split-chart">
-        <div class="chart-center">
-          <div class="chart-value">
-            <span class="total-expenses">{{ formatCurrency(dashboardData.monthlyExpense) }}</span>
-            <span class="label">Total Spent</span>
+    <!-- Bottom Row -->
+    <div class="bottom-row">
+      <!-- Revenue Chart -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>Revenue flow</h3>
+          <div class="controls">
+            <button class="active">Monthly</button>
+            <button class="refresh">↻</button>
           </div>
         </div>
-
-        <svg class="donut-chart" viewBox="0 0 200 200">
-          <circle
-            class="donut-base"
-            cx="100"
-            cy="100"
-            r="90"
-          />
-          <!-- Pie slices are drawn with dynamic stroke-dasharray -->
-        </svg>
+        <div class="bar-chart">
+          <div class="bar" style="height: 55%">
+            <span class="bar-label">Apr</span>
+            <span class="bar-value">+$4.1K</span>
+          </div>
+          <div class="bar" style="height: 70%">
+            <span class="bar-label">May</span>
+            <span class="bar-value">+$2.2K</span>
+          </div>
+          <div class="bar" style="height: 60%">
+            <span class="bar-label">Jun</span>
+            <span class="bar-value">+$3.5K</span>
+          </div>
+          <div class="bar" style="height: 65%">
+            <span class="bar-label">Jul</span>
+            <span class="bar-value">+$1.2K</span>
+          </div>
+          <div class="bar active" style="height: 85%">
+            <span class="bar-label">Aug</span>
+            <div class="bar-highlight">
+              <div>$2.4K</div>
+              <div class="perc">+15%</div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="expense-list">
-        <div
-          *ngFor="let expense of dashboardData.expenseSplit"
-          class="expense-item"
-        >
-          <div class="expense-info">
-            <span class="expense-name">{{ expense.category }}</span>
-            <span class="expense-percentage">{{ expense.percentage }}%</span>
+      <!-- Expense Split -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>Expense split</h3>
+          <select><option>Aug</option></select>
+        </div>
+        <div class="donut-container">
+          <div class="donut-chart">
+            <svg viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#FFD93D" stroke-width="30" stroke-dasharray="126 377" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#60A5FA" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-126" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#F472B6" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-164" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#A78BFA" stroke-width="30" stroke-dasharray="63 377" stroke-dashoffset="-202" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#34D399" stroke-width="30" stroke-dasharray="75 377" stroke-dashoffset="-265" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#FBBF24" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-340" transform="rotate(-90 100 100)"></circle>
+            </svg>
+            <div class="donut-center">
+              <div>Total</div>
+              <div class="donut-value">{{formatNumber(dashboardData.monthlyExpense)}}<sup>$</sup></div>
+            </div>
           </div>
-          <div class="expense-bar">
-            <div
-              class="expense-bar-fill"
-              [style.width.%]="expense.percentage"
-            ></div>
+          <div class="legend">
+            <div class="legend-row">
+              <div><span class="dot food"></span> Food <span>30%</span></div>
+              <div><span class="dot ent"></span> Entertainment <span>10%</span></div>
+            </div>
+            <div class="legend-row">
+              <div><span class="dot health"></span> Health <span>10%</span></div>
+              <div><span class="dot transport"></span> Transportation <span>15%</span></div>
+            </div>
+            <div class="legend-row">
+              <div><span class="dot bills"></span> Bills <span>20%</span></div>
+              <div><span class="dot misc"></span> Miscellaneous <span>15%</span></div>
+            </div>
           </div>
-          <span class="expense-amount">{{ formatCurrency(expense.amount) }}</span>
+        </div>
+      </div>
+
+      <!-- Transactions -->
+      <div class="chart-card transactions">
+        <div class="chart-header">
+          <h3>Recent transactions <sup>234</sup></h3>
+          <a href="#">See All →</a>
+        </div>
+        <div class="trans-list">
+          <div class="trans-item" *ngFor="let t of dashboardData.transactions.slice(0,  6)">
+            <div class="trans-icon">{{t.type === 'income' ? '💵' : '📤'}}</div>
+            <div class="trans-info">
+              <div>{{t.description}}</div>
+              <div class="trans-status status-{{t.status}}">{{t.status}}</div>
+            </div>
+            <div class="trans-details">
+              <div>{{formatDate(t.date)}}</div>
+              <div class="trans-id">{{t.id}}</div>
+            </div>
+            <div class="trans-amount" [class.negative]="t.type === 'expense'">
+              {{t.type === 'expense' ? '-' : '+'}}${{t.amount}}
+            </div>
+            <button class="trans-menu">⋮</button>
+          </div>
         </div>
       </div>
     </div>
-
-    <!-- Recent Activity Section -->
-    <div class="recent-activity-container">
-      <div class="section-header">
-        <h3>Recent Activity</h3>
-      </div>
-
-      <div class="activity-list">
-        <div
-          *ngFor="let transaction of dashboardData.transactions.slice(0, 5)"
-          class="activity-item"
-        >
-          <div class="activity-icon" [class]="'icon-' + transaction.type">
-            {{ transaction.type === 'income' ? '💵' : '💸' }}
-          </div>
-
-          <div class="activity-details">
-            <div class="activity-description">{{ transaction.description }}</div>
-            <div class="activity-category">{{ transaction.category }}</div>
-          </div>
-
-          <div class="activity-amount" [class]="'amount-' + transaction.type">
-            {{ transaction.type === 'income' ? '+' : '-' }}{{ formatCurrency(transaction.amount) }}
-          </div>
-
-          <span
-            class="activity-status"
-            [class]="'status-' + transaction.status"
-          >
-            {{ transaction.status }}
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <!-- AI Financial Advisor Chat -->
-    <div class="chat-section">
-      <app-chat-tab></app-chat-tab>
-    </div>
+  </div>
+</div>

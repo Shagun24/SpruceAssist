@@ -33,11 +33,21 @@ export class OverviewTabComponent implements OnInit {
     }).format(value);
   }
 
+  formatNumber(value: number): string {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
+
   formatDate(date: Date): string {
     return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
       year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
     }).format(new Date(date));
   }
 }

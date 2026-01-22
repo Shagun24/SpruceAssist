@@ -197,3 +197,4 @@ export class ChatTabComponent implements OnInit, AfterViewChecked {
     }).format(new Date(date));
   }
 }
+
