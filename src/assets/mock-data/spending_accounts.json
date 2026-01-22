@@ -1,0 +1,18 @@
+[
+  {
+    "user_id": "42103f59-76f1-431c-9262-81b80129d9b9",
+    "active_ind": 1,
+    "service_transaction_id": null,
+    "is_spending_visible": 1,
+    "is_savings_visible": 1,
+    "monthly_deposit_amount_id": 1,
+    "occupation_id": 23,
+    "account_no": "322111492151",
+    "account_created_at": "2025-11-05T17:42:30.9195902+00:00",
+    "account_status_code": "N",
+    "account_type_id": 9,
+    "balance_id": null,
+    "current_balance": 2500.75,
+    "account_uuid": "60C54BF5-F673-4EF3-84E0-5C7C4BBE84F7"
+  }
+]

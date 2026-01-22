@@ -1,0 +1,31 @@
+[
+  {
+    "user_id": "42103f59-76f1-431c-9262-81b80129d9b",
+    "goals": [
+      {
+        "id": "extra_savings",
+        "name": "Extra Savings",
+        "target_amount": null,
+        "current_amount": 3200.0,
+        "target_date": null,
+        "monthly_contribution": 300.0
+      },
+      {
+        "id": "vacation",
+        "name": "Summer Vacation",
+        "target_amount": 2000.0,
+        "current_amount": 850.0,
+        "target_date": "2025-07-01",
+        "monthly_contribution": 200.0
+      },
+      {
+        "id": "new_laptop",
+        "name": "New Laptop",
+        "target_amount": 1500.0,
+        "current_amount": 600.0,
+        "target_date": "2025-03-31",
+        "monthly_contribution": 250.0
+      }
+    ]
+  }
+]
