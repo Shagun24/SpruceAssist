@@ -6,7 +6,11 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
-    "watch": "ng build --watch --configuration development"
+    "watch": "ng build --watch --configuration development",
+    "server:setup": "cd mcp-server && npm install && npm run build",
+    "server:dev": "cd mcp-server && npm run dev",
+    "server:start": "cd mcp-server && npm start",
+    "test:mcp": "npx -y @mcpjam/inspector@beta"
   },
   "private": true,
   "dependencies": {
