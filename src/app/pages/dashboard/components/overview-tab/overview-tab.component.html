@@ -110,5 +110,36 @@
         </div>
       </div>
     </div>
+
+    <!-- Budget Tracker Row -->
+    <div class="budget-row">
+      <div class="chart-card budget-card">
+        <div class="chart-header">
+          <h3>Budget Tracker</h3>
+          <select [value]="selectedMonthKey" (change)="onMonthChange($event)">
+            <option *ngFor="let m of monthOptions" [value]="m.value">{{m.label}}</option>
+          </select>
+        </div>
+        <div class="budget-bars">
+          <div *ngFor="let budget of dashboardData.budgets" class="budget-item">
+            <div class="budget-info">
+              <span class="budget-category">{{budget.category}}</span>
+              <span class="budget-amount">${{formatNumber(budget.spent)}} / ${{formatNumber(budget.limit)}}</span>
+            </div>
+            <div class="budget-bar-container">
+              <div class="budget-bar-bg">
+                <div 
+                  class="budget-bar-fill" 
+                  [style.width.%]="budget.percentage"
+                  [class.warning]="budget.percentage >= 80"
+                  [class.good]="budget.percentage < 60">
+                </div>
+              </div>
+              <span class="budget-percentage">{{budget.percentage}}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>

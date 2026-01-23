@@ -30,6 +30,7 @@ export interface DashboardData {
   revenueFlow: { label: string; net: number; netPercent: number; year: number; month: number }[];
   transactions: Transaction[];
   expenseSplit: { category: string; amount: number; percentage: number }[];
+  budgets: BudgetItem[];
 }
 
 interface RawTransaction {
@@ -201,6 +202,15 @@ export class FinanceService {
           month: item.month,
         }));
 
+        // Budget data
+        const budgets: BudgetItem[] = [
+          { category: 'Dining', limit: 500, spent: Math.min(expenseByCategoryMap.get('Food & Dining') || 0, 500), percentage: 0 },
+          { category: 'Bills', limit: 1200, spent: Math.min((expenseByCategoryMap.get('Utilities') || 0) + (expenseByCategoryMap.get('Bills') || 0), 1200), percentage: 0 },
+          { category: 'Shopping', limit: 350, spent: Math.min(expenseByCategoryMap.get('Shopping') || 0, 350), percentage: 0 },
+          { category: 'Transport', limit: 300, spent: Math.min(expenseByCategoryMap.get('Transport') || 0, 300), percentage: 0 },
+          { category: 'Entertainment', limit: 200, spent: Math.min(expenseByCategoryMap.get('Entertainment') || 0, 200), percentage: 0 },
+        ].map(b => ({ ...b, percentage: Math.round((b.spent / b.limit) * 100) }));
+
         return {
           totalBalance,
           monthlyIncome,
@@ -211,6 +221,7 @@ export class FinanceService {
           revenueFlow,
           transactions,
           expenseSplit,
+          budgets,
         };
       })
     );
