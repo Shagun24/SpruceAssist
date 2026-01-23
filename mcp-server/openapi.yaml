@@ -1,0 +1,319 @@
+openapi: 3.0.0
+info:
+  title: FinanceHub MCP API
+  description: AI-powered financial advisory API for ChatGPT integration
+  version: 1.0.0
+  contact:
+    name: FinanceHub Support
+    email: support@financehub.com
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://your-app.azurewebsites.net
+    description: Production server
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Check if the API is running
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /mcp/tools:
+    get:
+      summary: List available MCP tools
+      description: Returns a list of all available financial tools
+      responses:
+        '200':
+          description: List of available tools
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tools:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        inputSchema:
+                          type: object
+
+  /mcp/call:
+    post:
+      summary: Call an MCP tool
+      description: Execute a financial tool and get results
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  enum:
+                    - get_financial_overview
+                    - get_recent_transactions
+                    - get_expense_analysis
+                    - get_budget_recommendations
+                  description: The name of the tool to call
+                arguments:
+                  type: object
+                  description: Arguments for the tool
+      responses:
+        '200':
+          description: Tool execution result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+
+  /api/financial-overview:
+    get:
+      summary: Get financial overview
+      description: Retrieve total balance, income, expenses, and savings rate
+      responses:
+        '200':
+          description: Financial overview data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalBalance:
+                    type: number
+                    format: float
+                    example: 125450.50
+                  monthlyIncome:
+                    type: number
+                    format: float
+                    example: 8500
+                  monthlyExpense:
+                    type: number
+                    format: float
+                    example: 3200
+                  savingsRate:
+                    type: number
+                    format: float
+                    example: 62.4
+                  lastUpdated:
+                    type: string
+                    format: date-time
+
+  /api/transactions:
+    get:
+      summary: Get recent transactions
+      description: Retrieve a list of recent financial transactions
+      parameters:
+        - name: limit
+          in: query
+          description: Number of transactions to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        date:
+                          type: string
+                          format: date
+                        description:
+                          type: string
+                        amount:
+                          type: number
+                          format: float
+                        category:
+                          type: string
+                        type:
+                          type: string
+                          enum: [income, expense]
+                        status:
+                          type: string
+                          enum: [completed, pending, failed]
+
+  /api/expense-analysis:
+    get:
+      summary: Get expense analysis
+      description: Analyze spending patterns by category
+      responses:
+        '200':
+          description: Expense analysis with category breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        amount:
+                          type: number
+                          format: float
+                        percentage:
+                          type: number
+                          format: float
+                  totalExpenses:
+                    type: number
+                    format: float
+                  insights:
+                    type: array
+                    items:
+                      type: string
+
+  /api/budget-recommendations:
+    get:
+      summary: Get budget recommendations
+      description: Get AI-powered budget recommendations based on spending patterns
+      responses:
+        '200':
+          description: Personalized budget recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recommendations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category:
+                          type: string
+                        currentSpending:
+                          type: number
+                          format: float
+                        recommendedSpending:
+                          type: number
+                          format: float
+                        savingsPotential:
+                          type: number
+                          format: float
+                        advice:
+                          type: string
+
+  /api/financial-advice:
+    post:
+      summary: Get personalized financial advice
+      description: Ask any financial question and get contextual advice based on your data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - question
+              properties:
+                question:
+                  type: string
+                  description: Your financial question
+                  example: "How can I save more money?"
+      responses:
+        '200':
+          description: Personalized financial advice
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  question:
+                    type: string
+                  advice:
+                    type: string
+                  relevantData:
+                    type: object
+                  recommendations:
+                    type: array
+                    items:
+                      type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+        '400':
+          description: Bad request - question is required
+
+  /dashboard:
+    get:
+      summary: Get interactive dashboard
+      description: Returns HTML dashboard for visualization
+      responses:
+        '200':
+          description: HTML dashboard
+          content:
+            text/html:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string

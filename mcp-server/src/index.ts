@@ -1,10 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
-import express, { Express, Request, Response } from "express";
+import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
-import { Server } from "@modelcontextprotocol/sdk/server/index";
+import { Server } from "@modelcontextprotocol/sdk/server";
 import {
   StdioServerTransport,
-} from "@modelcontextprotocol/sdk/server/stdio";
+} from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   Tool,
   Resource,
@@ -16,10 +16,76 @@ import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
-} from "@modelcontextprotocol/sdk/types";
+} from "@modelcontextprotocol/sdk/types.js";
+
+// Load environment variables
+import dotenv from "dotenv";
+import * as fs from "fs";
+import * as path from "path";
+dotenv.config();
 
 const app: Express = express();
 const PORT = process.env.PORT || 8000;
+const API_KEY = process.env.API_KEY || "dev-api-key-12345";
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:4200"];
+
+// Load mock data from JSON files
+const loadMockData = (filename: string) => {
+  try {
+    const dataPath = path.join(process.cwd(), '..', 'src', 'assets', 'mock-data', filename);
+    if (fs.existsSync(dataPath)) {
+      return JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+    }
+  } catch (error) {
+    console.warn(`Could not load ${filename}, using fallback data`);
+  }
+  return null;
+};
+
+const budgetsData = loadMockData('budgets.json');
+const savingsData = loadMockData('savings_account.json');
+const spendingData = loadMockData('spending_accounts.json');
+
+// Extract budget data
+const userBudgets = budgetsData?.[0]?.budgets || {
+  dining: { monthly_limit: 500, description: "Restaurants and takeout" },
+  groceries: { monthly_limit: 600, description: "Supermarket and food shopping" },
+  travel: { monthly_limit: 300, description: "Flights, hotels, and trips" },
+  bills: { monthly_limit: 1200, description: "Rent, utilities, subscriptions" },
+  entertainment: { monthly_limit: 200, description: "Movies, concerts, events" },
+  shopping: { monthly_limit: 350, description: "Clothing, electronics, misc" },
+  healthcare: { monthly_limit: 200, description: "Medical expenses and pharmacy" },
+  transportation: { monthly_limit: 300, description: "Gas, car maintenance, parking" }
+};
+
+// Extract savings goals
+const savingsGoals = savingsData?.[0]?.goals || [];
+const savingsBalance = savingsData?.[0]?.current_balance || 2500.75;
+const spendingBalance = spendingData?.[0]?.current_balance || 2500.75;
+
+// Calculate total balance and monthly budget
+const totalBalance = savingsBalance + spendingBalance;
+const monthlyIncome = 8500;
+const monthlyBudgetTotal = Object.values(userBudgets).reduce((sum: number, budget: any) => sum + budget.monthly_limit, 0);
+
+// API Key Authentication Middleware
+const authenticateApiKey = (req: Request, res: Response, next: NextFunction) => {
+  // Skip auth for health check
+  if (req.path === "/health") {
+    return next();
+  }
+
+  const apiKey = req.headers["x-api-key"] || req.query.apiKey;
+  
+  if (!apiKey || apiKey !== API_KEY) {
+    return res.status(401).json({ 
+      error: "Unauthorized", 
+      message: "Invalid or missing API key" 
+    });
+  }
+  
+  next();
+};
 
 // Mock financial data for the app
 interface FinancialData {
@@ -37,9 +103,9 @@ interface FinancialData {
 }
 
 const mockFinancialData: FinancialData = {
-  totalBalance: 125450.5,
-  monthlyIncome: 8500,
-  monthlyExpense: 3200,
+  totalBalance: totalBalance,
+  monthlyIncome: monthlyIncome,
+  monthlyExpense: monthlyBudgetTotal,
   recentTransactions: [
     {
       id: "1",
@@ -71,11 +137,14 @@ const mockFinancialData: FinancialData = {
     },
   ],
   expenseBreakdown: {
-    "Food & Dining": 450,
-    Transportation: 300,
-    Utilities: 250,
-    Entertainment: 200,
-    Shopping: 350,
+    "Dining": userBudgets.dining?.monthly_limit || 500,
+    "Groceries": userBudgets.groceries?.monthly_limit || 600,
+    "Transportation": userBudgets.transportation?.monthly_limit || 300,
+    "Bills": userBudgets.bills?.monthly_limit || 1200,
+    "Entertainment": userBudgets.entertainment?.monthly_limit || 200,
+    "Shopping": userBudgets.shopping?.monthly_limit || 350,
+    "Healthcare": userBudgets.healthcare?.monthly_limit || 200,
+    "Travel": userBudgets.travel?.monthly_limit || 300,
   },
 };
 
@@ -421,18 +490,692 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request: any) => {
   throw new Error(`Unknown resource: ${uri}`);
 });
 
-// Express endpoints for serving the MCP protocol
-app.use(cors());
+// Express middleware setup
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'X-API-Key']
+}));
 app.use(express.json());
+app.use(authenticateApiKey);
 
-// Health check
+// Health check (no auth required)
 app.get("/health", (req: Request, res: Response) => {
-  res.json({ status: "ok", service: "FinanceHub MCP Server" });
+  res.json({ 
+    status: "ok", 
+    service: "FinanceHub MCP Server",
+    timestamp: new Date().toISOString(),
+    version: "1.0.0"
+  });
 });
 
-// MCP endpoint
-app.post("/mcp", (req: Request, res: Response) => {
-  res.json({ message: "MCP server running. Use proper MCP client." });
+// API Endpoints for ChatGPT integration
+app.get("/api/financial-overview", (req: Request, res: Response) => {
+  const savingsRate = ((mockFinancialData.monthlyIncome - mockFinancialData.monthlyExpense) / mockFinancialData.monthlyIncome) * 100;
+  
+  res.json({
+    totalBalance: mockFinancialData.totalBalance,
+    monthlyIncome: mockFinancialData.monthlyIncome,
+    monthlyExpense: mockFinancialData.monthlyExpense,
+    savingsRate: parseFloat(savingsRate.toFixed(2)),
+    lastUpdated: new Date().toISOString()
+  });
+});
+
+app.get("/api/transactions", (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 10, 100);
+  const transactions = mockFinancialData.recentTransactions.slice(0, limit);
+  
+  res.json({
+    transactions,
+    total: mockFinancialData.recentTransactions.length,
+    limit
+  });
+});
+
+app.get("/api/expense-analysis", (req: Request, res: Response) => {
+  const totalExpenses = Object.values(mockFinancialData.expenseBreakdown).reduce((a, b) => a + b, 0);
+  
+  const categories = Object.entries(mockFinancialData.expenseBreakdown).map(([name, amount]) => ({
+    name,
+    amount,
+    percentage: parseFloat(((amount / totalExpenses) * 100).toFixed(2))
+  }));
+  
+  const insights = [
+    `Housing is your largest expense at ${categories[0].percentage}% of total spending`,
+    `Consider reducing ${categories[1].name} costs to save more`,
+    `You're spending ${totalExpenses} per month on expenses`
+  ];
+  
+  res.json({
+    categories,
+    totalExpenses,
+    insights
+  });
+});
+
+app.get("/api/budget-recommendations", (req: Request, res: Response) => {
+  // Generate recommendations based on actual budget data
+  const recommendations = [];
+  
+  // Calculate current spending vs budget limits
+  const categories = Object.entries(userBudgets);
+  
+  // Sort by highest budget to identify areas with most potential
+  const sortedCategories = categories.sort((a: any, b: any) => b[1].monthly_limit - a[1].monthly_limit);
+  
+  // Transportation recommendation
+  if (userBudgets.transportation) {
+    const current = userBudgets.transportation.monthly_limit;
+    const recommended = Math.round(current * 0.7); // 30% reduction
+    recommendations.push({
+      category: "Transportation",
+      currentSpending: current,
+      recommendedSpending: recommended,
+      savingsPotential: current - recommended,
+      advice: "Consider carpooling, public transportation, or walking for short distances. Could save 30% monthly."
+    });
+  }
+  
+  // Dining recommendation
+  if (userBudgets.dining) {
+    const current = userBudgets.dining.monthly_limit;
+    const recommended = Math.round(current * 0.75); // 25% reduction
+    recommendations.push({
+      category: "Dining",
+      currentSpending: current,
+      recommendedSpending: recommended,
+      savingsPotential: current - recommended,
+      advice: "Meal prep at home more often. Even 1-2 fewer restaurant visits per week can save 25%."
+    });
+  }
+  
+  // Entertainment recommendation
+  if (userBudgets.entertainment) {
+    const current = userBudgets.entertainment.monthly_limit;
+    const recommended = Math.round(current * 0.75); // 25% reduction
+    recommendations.push({
+      category: "Entertainment",
+      currentSpending: current,
+      recommendedSpending: recommended,
+      savingsPotential: current - recommended,
+      advice: "Look for free community events, movie matinees, or streaming services instead of premium events."
+    });
+  }
+  
+  // Shopping recommendation
+  if (userBudgets.shopping) {
+    const current = userBudgets.shopping.monthly_limit;
+    const recommended = Math.round(current * 0.7); // 30% reduction
+    recommendations.push({
+      category: "Shopping",
+      currentSpending: current,
+      recommendedSpending: recommended,
+      savingsPotential: current - recommended,
+      advice: "Implement a 24-hour rule before non-essential purchases. Use shopping lists to avoid impulse buying."
+    });
+  }
+  
+  // Add savings goals context if available
+  let savingsGoalAdvice = "";
+  if (savingsGoals.length > 0) {
+    const totalSavingsPotential = recommendations.reduce((sum, r) => sum + r.savingsPotential, 0);
+    const goalNames = savingsGoals.map((g: any) => g.name).join(", ");
+    savingsGoalAdvice = `These savings could help accelerate your goals: ${goalNames}. Total monthly savings potential: $${totalSavingsPotential}.`;
+  }
+  
+  res.json({
+    recommendations: recommendations.slice(0, 4), // Top 4 recommendations
+    totalSavingsPotential: recommendations.reduce((sum, r) => sum + r.savingsPotential, 0),
+    currentMonthlyBudget: monthlyBudgetTotal,
+    savingsGoals: savingsGoals.map((g: any) => ({
+      name: g.name,
+      target: g.target_amount,
+      current: g.current_amount,
+      monthlyContribution: g.monthly_contribution
+    })),
+    advice: savingsGoalAdvice || "Start tracking your spending to identify more savings opportunities."
+  });
+});
+
+// AI-powered financial advice endpoint
+app.post("/api/financial-advice", async (req: Request, res: Response) => {
+  const { question } = req.body;
+  
+  if (!question) {
+    return res.status(400).json({ error: "Question is required" });
+  }
+  
+  try {
+    // Prepare financial context from mock data
+    const financialContext = {
+      totalBalance: mockFinancialData.totalBalance,
+      monthlyIncome: mockFinancialData.monthlyIncome,
+      monthlyExpense: mockFinancialData.monthlyExpense,
+      savingsRate: ((mockFinancialData.monthlyIncome - mockFinancialData.monthlyExpense) / mockFinancialData.monthlyIncome * 100).toFixed(2),
+      budgets: userBudgets,
+      savingsGoals: savingsGoals,
+      recentTransactions: mockFinancialData.recentTransactions.slice(0, 5),
+      expenseBreakdown: mockFinancialData.expenseBreakdown
+    };
+    
+    // Generate contextual advice based on question
+    const advice = generateFinancialAdvice(question.toLowerCase(), financialContext);
+    
+    res.json({
+      question,
+      advice: advice.advice,
+      relevantData: advice.data,
+      recommendations: advice.recommendations,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: "Failed to generate advice", 
+      message: error instanceof Error ? error.message : "Unknown error" 
+    });
+  }
+});
+
+// Helper function to generate contextual financial advice
+function generateFinancialAdvice(question: string, context: any) {
+  const response: any = {
+    advice: "",
+    data: {},
+    recommendations: []
+  };
+  
+  // Savings-related questions
+  if (question.includes("save") || question.includes("saving")) {
+    const potentialSavings = context.monthlyIncome - context.monthlyExpense;
+    response.advice = `Based on your current income of $${context.monthlyIncome} and expenses of $${context.monthlyExpense}, you're saving $${potentialSavings} per month (${context.savingsRate}% savings rate).`;
+    
+    response.data = {
+      currentSavings: potentialSavings,
+      savingsRate: context.savingsRate + "%",
+      savingsGoals: context.savingsGoals
+    };
+    
+    // Analyze high-spending categories
+    const sortedExpenses = Object.entries(context.expenseBreakdown)
+      .sort((a: any, b: any) => b[1] - a[1])
+      .slice(0, 3);
+    
+    response.recommendations = sortedExpenses.map(([category, amount]: any) => {
+      const reduction = Math.round(amount * 0.2);
+      return `Reduce ${category} spending by 20% (from $${amount} to $${amount - reduction}) to save an additional $${reduction}/month`;
+    });
+  }
+  
+  // Budget-related questions
+  else if (question.includes("budget") || question.includes("spending") || question.includes("expense")) {
+    response.advice = `Your total monthly budget is $${context.monthlyExpense}. Here's how it breaks down:`;
+    response.data = context.expenseBreakdown;
+    
+    const highestCategory = Object.entries(context.expenseBreakdown)
+      .reduce((max: any, curr: any) => curr[1] > max[1] ? curr : max);
+    
+    response.recommendations = [
+      `${highestCategory[0]} is your highest expense at $${highestCategory[1]}/month`,
+      `Consider the 50/30/20 rule: 50% needs, 30% wants, 20% savings`,
+      `Your current allocation: ${((context.monthlyExpense / context.monthlyIncome) * 100).toFixed(1)}% expenses, ${context.savingsRate}% savings`
+    ];
+  }
+  
+  // Transportation questions
+  else if (question.includes("transport") || question.includes("gas") || question.includes("car") || question.includes("commute") || question.includes("uber") || question.includes("lyft")) {
+    const transportBudget = context.budgets.transportation?.monthly_limit || 0;
+    response.advice = `Your monthly transportation budget is $${transportBudget}. Here are ways to optimize:`;
+    response.data = { currentBudget: transportBudget };
+    response.recommendations = [
+      `Carpool with coworkers 2-3 days/week to save 40-60% on gas`,
+      `Use public transit for commuting: potential $${Math.round(transportBudget * 0.5)} monthly savings`,
+      `Maintain your car regularly to prevent costly repairs`,
+      `Consider biking/walking for trips under 2 miles`,
+      `Compare gas prices using apps like GasBuddy`,
+      `Work from home when possible to reduce commute costs`
+    ];
+  }
+  
+  // Dining/food questions
+  else if (question.includes("food") || question.includes("dining") || question.includes("restaurant") || question.includes("eat") || question.includes("groceries") || question.includes("meal")) {
+    const diningBudget = context.budgets.dining?.monthly_limit || 0;
+    const groceryBudget = context.budgets.groceries?.monthly_limit || 0;
+    response.advice = `Your food expenses: Dining out $${diningBudget}, Groceries $${groceryBudget}/month. Here's how to save:`;
+    response.data = { dining: diningBudget, groceries: groceryBudget };
+    response.recommendations = [
+      `Meal prep on Sundays - save $${Math.round(diningBudget * 0.3)}/month by cooking at home`,
+      `Pack lunch for work 4-5 days/week: $${Math.round(diningBudget * 0.4)} savings`,
+      `Use grocery store loyalty programs and coupons`,
+      `Plan meals around sales and seasonal produce`,
+      `Limit restaurant visits to 1-2 times per week`,
+      `Buy generic brands to save 20-30% on groceries`,
+      `Use apps like Too Good To Go for discounted meals`
+    ];
+  }
+  
+  // Entertainment questions
+  else if (question.includes("entertainment") || question.includes("fun") || question.includes("activities") || question.includes("hobby") || question.includes("movie") || question.includes("streaming")) {
+    const entertainmentBudget = context.budgets.entertainment?.monthly_limit || 0;
+    response.advice = `You're budgeting $${entertainmentBudget}/month for entertainment. Smart ways to enjoy life affordably:`;
+    response.data = { currentBudget: entertainmentBudget };
+    response.recommendations = [
+      `Free community events: concerts, festivals, museum days`,
+      `Movie matinees instead of evening shows save 40-50%`,
+      `Share streaming subscriptions with family/friends`,
+      `Look for Groupon deals and happy hour specials`,
+      `Host game nights instead of going out`,
+      `Visit libraries for free books, movies, and events`,
+      `Take advantage of free trial periods for new services`
+    ];
+  }
+  
+  // Goals-related questions
+  else if (question.includes("goal") || question.includes("target") || question.includes("achieve") || question.includes("plan")) {
+    response.advice = `You have ${context.savingsGoals.length} active savings goals:`;
+    response.data = { goals: context.savingsGoals };
+    
+    context.savingsGoals.forEach((goal: any) => {
+      const remaining = goal.target_amount - goal.current_amount;
+      const monthsNeeded = Math.ceil(remaining / goal.monthly_contribution);
+      response.recommendations.push(
+        `${goal.name}: $${goal.current_amount}/$${goal.target_amount} - On track to reach in ${monthsNeeded} months with $${goal.monthly_contribution}/month contributions`
+      );
+    });
+    
+    const currentSavings = context.monthlyIncome - context.monthlyExpense;
+    if (currentSavings > 0) {
+      response.recommendations.push(`You could increase contributions by $${Math.round(currentSavings * 0.2)} to reach goals faster`);
+    }
+  }
+  
+  // Shopping questions
+  else if (question.includes("shop") || question.includes("purchase") || question.includes("buy") || question.includes("amazon") || question.includes("online shopping")) {
+    const shoppingBudget = context.budgets.shopping?.monthly_limit || 0;
+    response.advice = `Your shopping budget is $${shoppingBudget}/month. Smart shopping strategies:`;
+    response.data = { currentBudget: shoppingBudget };
+    response.recommendations = [
+      `Implement 24-hour rule: Wait a day before non-essential purchases`,
+      `Make shopping lists and stick to them`,
+      `Compare prices online before buying`,
+      `Buy quality items that last longer`,
+      `Use cashback apps like Rakuten and browser extensions like Honey`,
+      `Shop end-of-season sales for 50-70% discounts`,
+      `Unsubscribe from promotional emails to reduce temptation`,
+      `Use price tracking tools to buy at optimal times`
+    ];
+  }
+  
+  // Investment questions
+  else if (question.includes("invest") || question.includes("retirement") || question.includes("401k") || question.includes("ira") || question.includes("stock") || question.includes("portfolio")) {
+    const monthlySavings = context.monthlyIncome - context.monthlyExpense;
+    response.advice = `With $${monthlySavings}/month in surplus, here's an investment strategy:`;
+    response.data = { monthlySurplus: monthlySavings };
+    response.recommendations = [
+      `Max out employer 401(k) match first - it's free money`,
+      `Build 3-6 month emergency fund: target $${context.monthlyExpense * 3}-${context.monthlyExpense * 6}`,
+      `Consider Roth IRA contributions: $${Math.min(monthlySavings * 0.3, 500)}/month`,
+      `Diversify with low-cost index funds (S&P 500, Total Market)`,
+      `Start with 70% stocks, 30% bonds based on your age`,
+      `Automate investments with dollar-cost averaging`,
+      `Consider HSA for triple tax benefits if eligible`
+    ];
+  }
+  
+  // Debt questions
+  else if (question.includes("debt") || question.includes("loan") || question.includes("credit card") || question.includes("pay off") || question.includes("owe")) {
+    response.advice = `Managing debt effectively is crucial for financial health. Here's your strategy:`;
+    response.data = { monthlyIncome: context.monthlyIncome, monthlyExpense: context.monthlyExpense };
+    response.recommendations = [
+      `Use debt avalanche method: pay highest interest rate first`,
+      `Allocate $${Math.round((context.monthlyIncome - context.monthlyExpense) * 0.5)} extra toward debt monthly`,
+      `Avoid new credit card balances - use debit card instead`,
+      `Consider balance transfer to 0% APR card`,
+      `Call creditors to negotiate lower interest rates`,
+      `Make bi-weekly payments instead of monthly to save interest`,
+      `Snowball method: pay smallest debt first for psychological wins`
+    ];
+  }
+  
+  // Emergency fund questions
+  else if (question.includes("emergency") || question.includes("rainy day") || question.includes("unexpected")) {
+    const recommendedEmergency = context.monthlyExpense * 6;
+    const currentSavings = context.monthlyIncome - context.monthlyExpense;
+    response.advice = `Your recommended emergency fund is $${recommendedEmergency} (6 months of expenses). Here's how to build it:`;
+    response.data = { recommendedAmount: recommendedEmergency, monthlyExpense: context.monthlyExpense };
+    response.recommendations = [
+      `Set aside $${Math.round(currentSavings * 0.4)}/month to build emergency fund`,
+      `Keep emergency fund in high-yield savings account (4-5% APY)`,
+      `Start with 3 months of expenses, then work toward 6 months`,
+      `Automate transfers to separate account so you don't spend it`,
+      `Only use for true emergencies: job loss, medical, urgent repairs`,
+      `Replenish immediately after using emergency funds`
+    ];
+  }
+  
+  // Bills and utilities questions
+  else if (question.includes("bill") || question.includes("utilities") || question.includes("electricity") || question.includes("water") || question.includes("internet") || question.includes("phone")) {
+    const billsBudget = context.budgets.bills?.monthly_limit || 0;
+    response.advice = `Your monthly bills budget is $${billsBudget}. Ways to reduce recurring expenses:`;
+    response.data = { currentBudget: billsBudget };
+    response.recommendations = [
+      `Call providers annually to negotiate lower rates`,
+      `Bundle internet, phone, and TV for 20-30% savings`,
+      `Switch to energy-efficient LED bulbs and appliances`,
+      `Install programmable thermostat to save $180/year`,
+      `Review subscriptions - cancel unused services`,
+      `Compare insurance rates yearly for better deals`,
+      `Use budget billing to avoid seasonal spikes`
+    ];
+  }
+  
+  // Healthcare questions
+  else if (question.includes("health") || question.includes("medical") || question.includes("insurance") || question.includes("doctor") || question.includes("prescription")) {
+    const healthcareBudget = context.budgets.healthcare?.monthly_limit || 0;
+    response.advice = `Your healthcare budget is $${healthcareBudget}/month. Smart healthcare spending strategies:`;
+    response.data = { currentBudget: healthcareBudget };
+    response.recommendations = [
+      `Use generic medications - save 80-85% vs brand name`,
+      `Take advantage of preventive care (usually free)`,
+      `Use HSA/FSA for tax-free healthcare spending`,
+      `Compare pharmacy prices using GoodRx`,
+      `Consider telemedicine for minor issues ($40 vs $150)`,
+      `Negotiate medical bills - ask for itemized statements`,
+      `Stay in-network to avoid surprise bills`
+    ];
+  }
+  
+  // Travel and vacation questions
+  else if (question.includes("travel") || question.includes("vacation") || question.includes("trip") || question.includes("holiday")) {
+    const travelBudget = context.budgets.travel?.monthly_limit || 0;
+    response.advice = `Your travel budget is $${travelBudget}/month. Smart travel planning tips:`;
+    response.data = { currentBudget: travelBudget, annualBudget: travelBudget * 12 };
+    response.recommendations = [
+      `Book flights 6-8 weeks in advance for best prices`,
+      `Travel during off-peak seasons for 40-60% savings`,
+      `Use travel rewards credit cards strategically`,
+      `Consider Airbnb or VRBO instead of hotels`,
+      `Pack light to avoid baggage fees`,
+      `Use public transportation at destinations`,
+      `Look for free walking tours and activities`,
+      `Cook some meals if accommodation has kitchen`
+    ];
+  }
+  
+  // Income and side hustle questions
+  else if (question.includes("income") || question.includes("earn more") || question.includes("side hustle") || question.includes("raise") || question.includes("promotion")) {
+    response.advice = `Your current monthly income is $${context.monthlyIncome}. Ways to increase earnings:`;
+    response.data = { currentIncome: context.monthlyIncome };
+    response.recommendations = [
+      `Ask for raise - research market rates for your role`,
+      `Freelance in your field for extra $500-2000/month`,
+      `Sell unused items online (Facebook Marketplace, eBay)`,
+      `Rent out spare room on Airbnb`,
+      `Start a side business based on your skills`,
+      `Teach or tutor online ($20-60/hour)`,
+      `Invest in skills that increase earning potential`,
+      `Consider job hopping - often 10-20% salary increase`
+    ];
+  }
+  
+  // Credit score questions
+  else if (question.includes("credit score") || question.includes("credit report") || question.includes("credit rating")) {
+    response.advice = `Building and maintaining good credit (700+) saves money on loans and rates:`;
+    response.data = { monthlyIncome: context.monthlyIncome };
+    response.recommendations = [
+      `Pay all bills on time - set up autopay`,
+      `Keep credit utilization below 30% of limit`,
+      `Don't close old credit cards - length of history matters`,
+      `Check credit report free at annualcreditreport.com`,
+      `Dispute any errors on credit report immediately`,
+      `Become authorized user on family member's card`,
+      `Avoid applying for multiple cards in short period`,
+      `Use credit monitoring apps to track score`
+    ];
+  }
+  
+  // Tax questions
+  else if (question.includes("tax") || question.includes("deduction") || question.includes("refund") || question.includes("irs")) {
+    response.advice = `Smart tax strategies to keep more of your $${context.monthlyIncome} monthly income:`;
+    response.data = { annualIncome: context.monthlyIncome * 12 };
+    response.recommendations = [
+      `Max out 401(k) contributions to lower taxable income`,
+      `Use HSA/FSA for tax-free healthcare spending`,
+      `Track deductible expenses: charity, medical, business`,
+      `Consider itemizing if deductions exceed standard`,
+      `Contribute to traditional IRA for tax deduction`,
+      `Keep records for home office deduction if self-employed`,
+      `Use tax software or consult CPA for complex situations`,
+      `Adjust W-4 withholding to avoid large refund (use money now)`
+    ];
+  }
+  
+  // Insurance questions
+  else if (question.includes("insurance") && !question.includes("health")) {
+    response.advice = `Insurance protects your finances but can be optimized:`;
+    response.data = { monthlyExpense: context.monthlyExpense };
+    response.recommendations = [
+      `Shop for auto insurance annually - save $200-500`,
+      `Bundle home/auto insurance for 15-25% discount`,
+      `Increase deductibles to lower premiums`,
+      `Get life insurance while young (much cheaper)`,
+      `Drop collision coverage on cars worth under $3000`,
+      `Ask about discounts: safe driver, multi-policy, good student`,
+      `Consider umbrella policy for extra liability protection`,
+      `Review coverage annually to avoid over-insuring`
+    ];
+  }
+  
+  // Housing and rent questions
+  else if (question.includes("rent") || question.includes("mortgage") || question.includes("housing") || question.includes("apartment") || question.includes("house")) {
+    const housingBudget = context.budgets.bills?.monthly_limit || 0;
+    response.advice = `Housing typically should be under 30% of income. Your bills budget (including rent) is $${housingBudget}:`;
+    response.data = { housingBudget, incomePercentage: ((housingBudget / context.monthlyIncome) * 100).toFixed(1) };
+    response.recommendations = [
+      `Keep housing under 30% of gross income`,
+      `Consider roommates to split costs`,
+      `Negotiate rent renewal - landlords prefer keeping tenants`,
+      `If buying, put down 20% to avoid PMI`,
+      `Refinance mortgage if rates drop 0.5% or more`,
+      `Reduce utility costs with energy-efficient upgrades`,
+      `Research first-time homebuyer programs in your area`
+    ];
+  }
+  
+  // Education questions
+  else if (question.includes("education") || question.includes("student loan") || question.includes("college") || question.includes("tuition") || question.includes("degree")) {
+    response.advice = `Education investment strategies based on your $${context.monthlyIncome} monthly income:`;
+    response.data = { monthlyIncome: context.monthlyIncome };
+    response.recommendations = [
+      `Research employer tuition reimbursement programs`,
+      `Consider community college for first 2 years (save 50-70%)`,
+      `Look for scholarships and grants - free money`,
+      `Take AP/CLEP exams to earn college credits cheaply`,
+      `Compare student loan refinancing rates annually`,
+      `Use income-driven repayment plans if struggling`,
+      `Invest in skills with high ROI for your field`,
+      `Explore free online courses (Coursera, edX) first`
+    ];
+  }
+  
+  // General financial health
+  else {
+    response.advice = `Your financial health summary: Income $${context.monthlyIncome}, Expenses $${context.monthlyExpense}, Savings Rate ${context.savingsRate}%. You're in good shape!`;
+    response.data = {
+      income: context.monthlyIncome,
+      expenses: context.monthlyExpense,
+      savingsRate: context.savingsRate + "%",
+      totalBalance: context.totalBalance
+    };
+    response.recommendations = [
+      `Your ${context.savingsRate}% savings rate is excellent (aim for 20%+)`,
+      `Top expense: ${Object.entries(context.expenseBreakdown)[0][0]} at $${Object.entries(context.expenseBreakdown)[0][1]}`,
+      `Keep tracking expenses and reviewing monthly`,
+      `Consider automating savings transfers`,
+      `Review and adjust budgets quarterly`,
+      `Build emergency fund equal to 6 months expenses`,
+      `Maximize retirement contributions for compound growth`
+    ];
+  }
+  
+  return response;
+}
+
+// MCP Tools endpoint for ChatGPT
+app.get("/mcp/tools", (req: Request, res: Response) => {
+  res.json({
+    tools: [
+      {
+        name: "get_financial_overview",
+        description: "Get total balance, monthly income, expenses, and savings rate",
+        inputSchema: { type: "object", properties: {} }
+      },
+      {
+        name: "get_recent_transactions",
+        description: "Get recent financial transactions",
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Number of transactions to return", default: 10 }
+          }
+        }
+      },
+      {
+        name: "get_expense_analysis",
+        description: "Get expense breakdown by category with insights",
+        inputSchema: { type: "object", properties: {} }
+      },
+      {
+        name: "get_budget_recommendations",
+        description: "Get personalized budget recommendations",
+        inputSchema: { type: "object", properties: {} }
+      }
+    ]
+  });
+});
+
+// MCP Tool execution endpoint
+app.post("/mcp/call", async (req: Request, res: Response) => {
+  const { name, arguments: args } = req.body;
+  
+  try {
+    let result;
+    
+    switch (name) {
+      case "get_financial_overview":
+        const savingsRate = ((mockFinancialData.monthlyIncome - mockFinancialData.monthlyExpense) / mockFinancialData.monthlyIncome) * 100;
+        result = {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              totalBalance: mockFinancialData.totalBalance,
+              monthlyIncome: mockFinancialData.monthlyIncome,
+              monthlyExpense: mockFinancialData.monthlyExpense,
+              savingsRate: parseFloat(savingsRate.toFixed(2))
+            }, null, 2)
+          }]
+        };
+        break;
+        
+      case "get_recent_transactions":
+        const limit = args?.limit || 10;
+        const transactions = mockFinancialData.recentTransactions.slice(0, limit);
+        result = {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ transactions }, null, 2)
+          }]
+        };
+        break;
+        
+      case "get_expense_analysis":
+        const totalExpenses = Object.values(mockFinancialData.expenseBreakdown).reduce((a, b) => a + b, 0);
+        const categories = Object.entries(mockFinancialData.expenseBreakdown).map(([name, amount]) => ({
+          name,
+          amount,
+          percentage: parseFloat(((amount / totalExpenses) * 100).toFixed(2))
+        }));
+        result = {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ categories, totalExpenses }, null, 2)
+          }]
+        };
+        break;
+        
+      case "get_budget_recommendations":
+        // Generate recommendations based on actual budget data
+        const budgetRecommendations = [];
+        
+        if (userBudgets.transportation) {
+          const current = userBudgets.transportation.monthly_limit;
+          const recommended = Math.round(current * 0.7);
+          budgetRecommendations.push({
+            category: "Transportation",
+            currentSpending: current,
+            recommendedSpending: recommended,
+            savingsPotential: current - recommended,
+            advice: "Consider carpooling, public transportation, or walking for short distances"
+          });
+        }
+        
+        if (userBudgets.dining) {
+          const current = userBudgets.dining.monthly_limit;
+          const recommended = Math.round(current * 0.75);
+          budgetRecommendations.push({
+            category: "Dining",
+            currentSpending: current,
+            recommendedSpending: recommended,
+            savingsPotential: current - recommended,
+            advice: "Meal prep at home more often to reduce dining out costs"
+          });
+        }
+        
+        if (userBudgets.shopping) {
+          const current = userBudgets.shopping.monthly_limit;
+          const recommended = Math.round(current * 0.7);
+          budgetRecommendations.push({
+            category: "Shopping",
+            currentSpending: current,
+            recommendedSpending: recommended,
+            savingsPotential: current - recommended,
+            advice: "Implement a 24-hour rule before non-essential purchases"
+          });
+        }
+        
+        const totalSavings = budgetRecommendations.reduce((sum, r) => sum + r.savingsPotential, 0);
+        
+        result = {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              recommendations: budgetRecommendations,
+              totalSavingsPotential: totalSavings,
+              currentMonthlyBudget: monthlyBudgetTotal,
+              savingsGoals: savingsGoals.map((g: any) => ({
+                name: g.name,
+                target: g.target_amount,
+                current: g.current_amount
+              })),
+              advice: `You could save $${totalSavings}/month by implementing these recommendations. This could help with your goals: ${savingsGoals.map((g: any) => g.name).join(", ")}.`
+            }, null, 2)
+          }]
+        };
+        break;
+        
+      default:
+        return res.status(400).json({ error: "Unknown tool", tool: name });
+    }
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ 
+      error: "Tool execution failed", 
+      message: error instanceof Error ? error.message : "Unknown error" 
+    });
+  }
 });
 
 // Serve dashboard directly for testing
@@ -446,4 +1189,6 @@ app.listen(PORT, () => {
   console.log(`FinanceHub MCP Server running on http://localhost:${PORT}`);
   console.log(`Dashboard available at http://localhost:${PORT}/dashboard`);
   console.log(`MCP endpoint: http://localhost:${PORT}/mcp`);
+  console.log(`API Key required: ${API_KEY}`);
 });
+
