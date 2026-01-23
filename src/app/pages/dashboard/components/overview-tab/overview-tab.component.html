@@ -121,7 +121,7 @@
           </select>
         </div>
         <div class="budget-bars">
-          <div *ngFor="let budget of dashboardData.budgets" class="budget-item">
+          <div *ngFor="let budget of displayBudgets" class="budget-item">
             <div class="budget-info">
               <span class="budget-category">{{budget.category}}</span>
               <span class="budget-amount">${{formatNumber(budget.spent)}} / ${{formatNumber(budget.limit)}}</span>

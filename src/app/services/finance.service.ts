@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, forkJoin } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 
 export interface Transaction {
@@ -57,13 +57,48 @@ export class FinanceService {
       .pipe(delay(200));
   }
 
+  private loadBudgetDefinitions(): Observable<BudgetItem[]> {
+    return this.http
+      .get<any[]>('assets/mock-data/budgets.json')
+      .pipe(
+        map((raw) => {
+          const userBudgets = raw?.[0]?.budgets || {};
+
+          const keyToLabel: { [key: string]: string } = {
+            dining: 'Dining',
+            groceries: 'Groceries',
+            travel: 'Travel',
+            bills: 'Bills',
+            entertainment: 'Entertainment',
+            shopping: 'Shopping',
+            healthcare: 'Healthcare',
+            transportation: 'Transportation',
+          };
+
+          const budgets: BudgetItem[] = Object.entries(userBudgets).map(
+            ([key, value]: [string, any]) => {
+              const category = keyToLabel[key] || key.charAt(0).toUpperCase() + key.slice(1);
+              const limit = typeof value?.monthly_limit === 'number' ? value.monthly_limit : 0;
+              return { category, limit, spent: 0, percentage: 0 };
+            }
+          );
+
+          return budgets;
+        }),
+        delay(200)
+      );
+  }
+
   getDashboardData(): Observable<DashboardData> {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    return this.loadRawTransactions().pipe(
-      map((raw) => {
+    return forkJoin({
+      raw: this.loadRawTransactions(),
+      budgetDefs: this.loadBudgetDefinitions(),
+    }).pipe(
+      map(({ raw, budgetDefs }) => {
         // assume data is ordered by date ascending; if not, sort
         const sorted = [...raw].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -202,14 +237,8 @@ export class FinanceService {
           month: item.month,
         }));
 
-        // Budget data
-        const budgets: BudgetItem[] = [
-          { category: 'Dining', limit: 500, spent: Math.min(expenseByCategoryMap.get('Food & Dining') || 0, 500), percentage: 0 },
-          { category: 'Bills', limit: 1200, spent: Math.min((expenseByCategoryMap.get('Utilities') || 0) + (expenseByCategoryMap.get('Bills') || 0), 1200), percentage: 0 },
-          { category: 'Shopping', limit: 350, spent: Math.min(expenseByCategoryMap.get('Shopping') || 0, 350), percentage: 0 },
-          { category: 'Transport', limit: 300, spent: Math.min(expenseByCategoryMap.get('Transport') || 0, 300), percentage: 0 },
-          { category: 'Entertainment', limit: 200, spent: Math.min(expenseByCategoryMap.get('Entertainment') || 0, 200), percentage: 0 },
-        ].map(b => ({ ...b, percentage: Math.round((b.spent / b.limit) * 100) }));
+        // Budget definitions (limits only, per category) from budgets.json
+        const budgets: BudgetItem[] = budgetDefs;
 
         return {
           totalBalance,

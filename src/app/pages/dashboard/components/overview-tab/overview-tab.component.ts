@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FinanceService, DashboardData } from '../../../../services/finance.service';
+import { FinanceService, DashboardData, BudgetItem } from '../../../../services/finance.service';
 import { ChatTabComponent } from '../chat-tab/chat-tab.component';
 
 @Component({
@@ -19,6 +19,8 @@ export class OverviewTabComponent implements OnInit {
   selectedExpenseSplit: { category: string; amount: number; percentage: number }[] = [];
   selectedMonthlyExpense = 0;
   selectedMonthlyIncome = 0;
+  baseBudgets: BudgetItem[] = [];
+  displayBudgets: BudgetItem[] = [];
 
   constructor(private financeService: FinanceService) {}
 
@@ -26,6 +28,7 @@ export class OverviewTabComponent implements OnInit {
     this.financeService.getDashboardData().subscribe({
       next: (data: DashboardData) => {
         this.dashboardData = data;
+        this.baseBudgets = data.budgets;
         this.buildMonthOptionsAndSelectDefault(data);
         this.recalculateForSelectedMonth();
         this.isLoading = false;
@@ -146,6 +149,7 @@ export class OverviewTabComponent implements OnInit {
       this.selectedExpenseSplit = [];
       this.selectedMonthlyExpense = 0;
       this.donutSegments = [];
+      this.displayBudgets = [];
       return;
     }
 
@@ -154,6 +158,7 @@ export class OverviewTabComponent implements OnInit {
       this.selectedExpenseSplit = [];
       this.selectedMonthlyExpense = 0;
       this.donutSegments = [];
+      this.displayBudgets = [];
       return;
     }
 
@@ -190,6 +195,7 @@ export class OverviewTabComponent implements OnInit {
     this.selectedMonthlyExpense = totalExpense;
     this.selectedMonthlyIncome = totalIncome;
     this.donutSegments = this.buildDonutSegments(split);
+    this.displayBudgets = this.buildBudgetsForMonth(monthExpenses);
   }
 
   private formatMonthLabel(year: number, month: number): string {
@@ -218,5 +224,40 @@ export class OverviewTabComponent implements OnInit {
     };
 
     return map[category] || '#9CA3AF';
+  }
+
+  private buildBudgetsForMonth(monthExpenses: { category: string; amount: number }[]): BudgetItem[] {
+    if (!this.baseBudgets.length) {
+      return [];
+    }
+
+    const categoryMap: { [budgetCategory: string]: string[] } = {
+      Dining: ['Restaurants', 'Fast Food', 'Food & Dining'],
+      Groceries: ['Groceries'],
+      Travel: ['Vacation', 'Travel', 'Air Travel', 'Hotel', 'Rental Car & Taxi'],
+      Bills: ['Mortgage & Rent', 'Utilities', 'Bills & Utilities', 'Mobile Phone', 'Internet', 'Television', 'Home Phone'],
+      Entertainment: ['Entertainment', 'Movies & DVDs', 'Amusement', 'Arts', 'Music'],
+      Shopping: ['Shopping', 'Clothing', 'Electronics & Software', 'Sporting Goods', 'Home Supplies', 'Baby Supplies', 'Toys'],
+      Healthcare: ['Pharmacy', 'Doctor', 'Dentist', 'Health & Fitness', 'Health Insurance', 'Gym', 'Eyecare', 'Veterinary', 'Pets', 'Pet Food & Supplies'],
+      Transportation: ['Gas', 'Public Transportation', 'Transportation', 'Parking', 'Auto Payment', 'Auto Insurance'],
+    };
+
+    return this.baseBudgets.map((budget) => {
+      const mappedCategories = categoryMap[budget.category] || [budget.category];
+
+      const spent = monthExpenses
+        .filter((tx) => mappedCategories.includes(tx.category))
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+      const percentage = budget.limit
+        ? Math.round((spent / budget.limit) * 100)
+        : 0;
+
+      return {
+        ...budget,
+        spent,
+        percentage,
+      };
+    });
   }
 }
