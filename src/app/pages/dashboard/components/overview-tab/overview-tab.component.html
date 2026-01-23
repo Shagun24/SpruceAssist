@@ -25,7 +25,7 @@
         <div class="stat-value">+{{formatNumber(dashboardData.monthlyIncome/4)}}<sup>$</sup></div>
         <div class="stat-footer">
           <span>This week's income</span>
-          <span class="badge-up">+15.7%</span>
+          <span class="badge-up"></span>
         </div>
       </div>
 
@@ -35,7 +35,7 @@
         <div class="stat-value">-{{formatNumber(dashboardData.monthlyExpense/4)}}<sup>$</sup></div>
         <div class="stat-footer">
           <span>This week's expense</span>
-          <span class="badge-down">-10.7%</span>
+          <span class="badge-down"></span>
         </div>
       </div>
     </div>
@@ -54,25 +54,25 @@
         <div class="bar-chart">
           <div class="bar" style="height: 55%">
             <span class="bar-label">Apr</span>
-            <span class="bar-value">+$4.1K</span>
+            <span class="bar-value"></span>
           </div>
           <div class="bar" style="height: 70%">
             <span class="bar-label">May</span>
-            <span class="bar-value">+$2.2K</span>
+            <span class="bar-value"></span>
           </div>
           <div class="bar" style="height: 60%">
             <span class="bar-label">Jun</span>
-            <span class="bar-value">+$3.5K</span>
+            <span class="bar-value"></span>
           </div>
           <div class="bar" style="height: 65%">
             <span class="bar-label">Jul</span>
-            <span class="bar-value">+$1.2K</span>
+            <span class="bar-value"></span>
           </div>
           <div class="bar active" style="height: 85%">
             <span class="bar-label">Aug</span>
             <div class="bar-highlight">
-              <div>$2.4K</div>
-              <div class="perc">+15%</div>
+              <div></div>
+              <div class="perc"></div>
             </div>
           </div>
         </div>
@@ -101,42 +101,17 @@
           </div>
           <div class="legend">
             <div class="legend-row">
-              <div><span class="dot food"></span> Food <span>30%</span></div>
-              <div><span class="dot ent"></span> Entertainment <span>10%</span></div>
+              <div><span class="dot food"></span> Food <span></span></div>
+              <div><span class="dot ent"></span> Entertainment <span></span></div>
             </div>
             <div class="legend-row">
-              <div><span class="dot health"></span> Health <span>10%</span></div>
-              <div><span class="dot transport"></span> Transportation <span>15%</span></div>
+              <div><span class="dot health"></span> Health <span></span></div>
+              <div><span class="dot transport"></span> Transportation <span></span></div>
             </div>
             <div class="legend-row">
-              <div><span class="dot bills"></span> Bills <span>20%</span></div>
-              <div><span class="dot misc"></span> Miscellaneous <span>15%</span></div>
+              <div><span class="dot bills"></span> Bills <span></span></div>
+              <div><span class="dot misc"></span> Miscellaneous <span></span></div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Transactions -->
-      <div class="chart-card transactions">
-        <div class="chart-header">
-          <h3>Recent transactions <sup>234</sup></h3>
-          <a href="#">See All →</a>
-        </div>
-        <div class="trans-list">
-          <div class="trans-item" *ngFor="let t of dashboardData.transactions.slice(0,  6)">
-            <div class="trans-icon">{{t.type === 'income' ? '💵' : '📤'}}</div>
-            <div class="trans-info">
-              <div>{{t.description}}</div>
-              <div class="trans-status status-{{t.status}}">{{t.status}}</div>
-            </div>
-            <div class="trans-details">
-              <div>{{formatDate(t.date)}}</div>
-              <div class="trans-id">{{t.id}}</div>
-            </div>
-            <div class="trans-amount" [class.negative]="t.type === 'expense'">
-              {{t.type === 'expense' ? '-' : '+'}}${{t.amount}}
-            </div>
-            <button class="trans-menu">⋮</button>
           </div>
         </div>
       </div>

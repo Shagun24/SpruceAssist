@@ -1,0 +1,101 @@
+<div class="modal-backdrop" (click)="onBackdropClick($event)">
+  <div class="modal-container">
+    <div class="modal-header">
+      <h2>Profile Settings</h2>
+      <button class="close-button" (click)="onClose()">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <form>
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input
+            type="text"
+            id="username"
+            [(ngModel)]="profile.username"
+            name="username"
+            class="form-control"
+            placeholder="Enter your username"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="preferredName">Preferred Name</label>
+          <input
+            type="text"
+            id="preferredName"
+            [(ngModel)]="profile.preferredName"
+            name="preferredName"
+            class="form-control"
+            placeholder="Enter your preferred name"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email</label>
+          <div class="input-with-toggle">
+            <input
+              type="text"
+              id="email"
+              [ngModel]="showEmail ? profile.email : getMaskedEmail()"
+              (ngModelChange)="profile.email = $event"
+              name="email"
+              class="form-control"
+              placeholder="Enter your email"
+              [readonly]="!showEmail"
+            />
+            <button type="button" class="toggle-visibility-btn" (click)="toggleEmailVisibility()">
+              <span *ngIf="!showEmail">👁️</span>
+              <span *ngIf="showEmail">🙈</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="address">Address</label>
+          <div class="input-with-toggle">
+            <textarea
+              id="address"
+              [ngModel]="showAddress ? profile.address : getMaskedAddress()"
+              (ngModelChange)="profile.address = $event"
+              name="address"
+              class="form-control"
+              rows="3"
+              placeholder="Enter your address"
+              [readonly]="!showAddress"
+            ></textarea>
+            <button type="button" class="toggle-visibility-btn textarea-toggle" (click)="toggleAddressVisibility()">
+              <span *ngIf="!showAddress">👁️</span>
+              <span *ngIf="showAddress">🙈</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="mobileNumber">Mobile Number</label>
+          <div class="input-with-toggle">
+            <input
+              type="text"
+              id="mobileNumber"
+              [ngModel]="showMobileNumber ? profile.mobileNumber : getMaskedMobileNumber()"
+              (ngModelChange)="profile.mobileNumber = $event"
+              name="mobileNumber"
+              class="form-control"
+              placeholder="Enter your mobile number"
+              [readonly]="!showMobileNumber"
+            />
+            <button type="button" class="toggle-visibility-btn" (click)="toggleMobileNumberVisibility()">
+              <span *ngIf="!showMobileNumber">👁️</span>
+              <span *ngIf="showMobileNumber">🙈</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="onClose()">Cancel</button>
+      <button class="btn btn-primary" (click)="onSave()">Save Changes</button>
+    </div>
+  </div>
+</div>

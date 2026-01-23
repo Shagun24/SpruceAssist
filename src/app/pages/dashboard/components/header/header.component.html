@@ -20,8 +20,7 @@
       </button>
 
       <div class="user-menu" *ngIf="showUserMenu" [@fadeInOut]>
-        <a href="#" class="menu-item">Profile Settings</a>
-        <a href="#" class="menu-item">Security</a>
+        <a href="#" class="menu-item" (click)="openProfileSettings($event)">Edit Profile</a>
         <a href="#" class="menu-item">Preferences</a>
         <div class="menu-divider"></div>
         <button class="menu-item logout-item" (click)="onLogout()">Logout</button>
@@ -29,3 +28,10 @@
     </div>
   </div>
 </header>
+
+<app-profile-settings-modal
+  *ngIf="showProfileModal"
+  [user]="currentUser"
+  (close)="closeProfileModal()"
+  (save)="saveProfileSettings($event)"
+></app-profile-settings-modal>

@@ -8,6 +8,9 @@ export interface User {
   name: string;
   email: string;
   avatar: string;
+  preferredName?: string;
+  mobileNumber?: string;
+  address?: string;
 }
 
 export interface LoginCredentials {
@@ -48,6 +51,17 @@ export class AuthService {
             [matched.first_name, matched.last_name].filter(Boolean).join(' ') ||
             credentials.email;
 
+          // Format address from address object
+          const address = matched.address 
+            ? [
+                matched.address.address_line1,
+                matched.address.address_line2,
+                matched.address.city,
+                matched.address.state,
+                matched.address.postal_code
+              ].filter(Boolean).join(', ')
+            : '';
+
           const user: User = {
             id: matched.user_id ?? '1',
             name,
@@ -55,6 +69,9 @@ export class AuthService {
             avatar:
               'https://api.dicebear.com/7.x/avataaars/svg?seed=' +
               (matched.email_id ?? credentials.email),
+            preferredName: matched.preferred_name || '',
+            mobileNumber: matched.phone || '',
+            address: address
           };
 
           localStorage.setItem('authToken', 'mock-token-' + Date.now());
@@ -73,6 +90,15 @@ export class AuthService {
     localStorage.removeItem('currentUser');
     this.currentUserSubject.next(null);
     this.isLoggedInSubject.next(false);
+  }
+
+  updateUserProfile(updates: Partial<User>): void {
+    const currentUser = this.currentUserSubject.value;
+    if (currentUser) {
+      const updatedUser = { ...currentUser, ...updates };
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      this.currentUserSubject.next(updatedUser);
+    }
   }
 
   private checkLoginStatus(): boolean {
