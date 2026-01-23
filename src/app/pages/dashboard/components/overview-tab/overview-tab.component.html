@@ -54,7 +54,7 @@
         <div class="bar-chart">
           <div class="bar" style="height: 55%">
             <span class="bar-label">Apr</span>
-            <span class="bar-value"></span>
+            <span class="bar-value">2.5k</span>
           </div>
           <div class="bar" style="height: 70%">
             <span class="bar-label">May</span>
@@ -87,12 +87,12 @@
         <div class="donut-container">
           <div class="donut-chart">
             <svg viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#FFD93D" stroke-width="30" stroke-dasharray="126 377" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#60A5FA" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-126" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#F472B6" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-164" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#A78BFA" stroke-width="30" stroke-dasharray="63 377" stroke-dashoffset="-202" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#34D399" stroke-width="30" stroke-dasharray="75 377" stroke-dashoffset="-265" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#FBBF24" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-340" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#FFD93D" stroke-width="30" stroke-dasharray="125.66 502.65" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#60A5FA" stroke-width="30" stroke-dasharray="37.7 502.65" stroke-dashoffset="-125.66" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#F472B6" stroke-width="30" stroke-dasharray="37.7 502.65" stroke-dashoffset="-163.36" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#A78BFA" stroke-width="30" stroke-dasharray="62.83 502.65" stroke-dashoffset="-201.06" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#34D399" stroke-width="30" stroke-dasharray="75.4 502.65" stroke-dashoffset="-263.89" transform="rotate(-90 100 100)"></circle>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#FBBF24" stroke-width="30" stroke-dasharray="163.96 502.65" stroke-dashoffset="-339.29" transform="rotate(-90 100 100)"></circle>
             </svg>
             <div class="donut-center">
               <div>Total</div>
@@ -111,6 +111,35 @@
             <div class="legend-row">
               <div><span class="dot bills"></span> Bills <span></span></div>
               <div><span class="dot misc"></span> Miscellaneous <span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Budget Tracker Row -->
+    <div class="budget-row">
+      <div class="chart-card budget-card">
+        <div class="chart-header">
+          <h3>Budget Tracker</h3>
+          <select><option>January</option></select>
+        </div>
+        <div class="budget-bars">
+          <div *ngFor="let budget of dashboardData.budgets" class="budget-item">
+            <div class="budget-info">
+              <span class="budget-category">{{budget.category}}</span>
+              <span class="budget-amount">${{formatNumber(budget.spent)}} / ${{formatNumber(budget.limit)}}</span>
+            </div>
+            <div class="budget-bar-container">
+              <div class="budget-bar-bg">
+                <div 
+                  class="budget-bar-fill" 
+                  [style.width.%]="budget.percentage"
+                  [class.warning]="budget.percentage >= 80"
+                  [class.good]="budget.percentage < 60">
+                </div>
+              </div>
+              <span class="budget-percentage">{{budget.percentage}}%</span>
             </div>
           </div>
         </div>

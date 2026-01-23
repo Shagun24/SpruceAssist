@@ -12,12 +12,20 @@ export interface Transaction {
   category: string;
 }
 
+export interface BudgetItem {
+  category: string;
+  limit: number;
+  spent: number;
+  percentage: number;
+}
+
 export interface DashboardData {
   totalBalance: number;
   monthlyIncome: number;
   monthlyExpense: number;
   transactions: Transaction[];
   expenseSplit: { category: string; amount: number; percentage: number }[];
+  budgets: BudgetItem[];
 }
 
 @Injectable({
@@ -108,6 +116,13 @@ export class FinanceService {
       { category: 'Shopping', amount: 450, percentage: 42 },
       { category: 'Transport', amount: 75, percentage: 7 },
       { category: 'Health & Fitness', amount: 50, percentage: 5 },
+    ],
+    budgets: [
+      { category: 'Dining', limit: 500, spent: 380, percentage: 76 },
+      { category: 'Bills', limit: 1200, spent: 950, percentage: 79 },
+      { category: 'Shopping', limit: 350, spent: 290, percentage: 83 },
+      { category: 'Transport', limit: 300, spent: 180, percentage: 60 },
+      { category: 'Entertainment', limit: 200, spent: 145, percentage: 73 },
     ],
   };
 
