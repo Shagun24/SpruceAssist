@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { delay, map } from 'rxjs/operators';
 
 export interface Transaction {
   id: string;
@@ -16,119 +17,224 @@ export interface DashboardData {
   totalBalance: number;
   monthlyIncome: number;
   monthlyExpense: number;
+  weeklyIncome: number;
+  weeklyExpense: number;
+  lastMonthNetRevenue: number;
+  revenueFlow: { label: string; net: number; netPercent: number }[];
   transactions: Transaction[];
   expenseSplit: { category: string; amount: number; percentage: number }[];
+}
+
+interface RawTransaction {
+  transaction_id: string;
+  user_id: string;
+  date: string;
+  category: string;
+  direction: 'credit' | 'debit';
+  amount: number;
+  current_balance: number;
+  description: string;
+  status: 'success' | 'pending' | 'failed';
 }
 
 @Injectable({
   providedIn: 'root',
 })
 export class FinanceService {
-  private mockData: DashboardData = {
-    totalBalance: 24580.5,
-    monthlyIncome: 8500,
-    monthlyExpense: 3200,
-    transactions: [
-      {
-        id: '1',
-        type: 'income',
-        description: 'Salary Deposit',
-        amount: 8500,
-        date: new Date(2026, 0, 15),
-        status: 'success',
-        category: 'Salary',
-      },
-      {
-        id: '2',
-        type: 'expense',
-        description: 'Grocery Store',
-        amount: 250,
-        date: new Date(2026, 0, 18),
-        status: 'success',
-        category: 'Food & Dining',
-      },
-      {
-        id: '3',
-        type: 'expense',
-        description: 'Electric Bill',
-        amount: 120,
-        date: new Date(2026, 0, 19),
-        status: 'success',
-        category: 'Utilities',
-      },
-      {
-        id: '4',
-        type: 'expense',
-        description: 'Restaurant',
-        amount: 85.5,
-        date: new Date(2026, 0, 20),
-        status: 'success',
-        category: 'Food & Dining',
-      },
-      {
-        id: '5',
-        type: 'income',
-        description: 'Freelance Project',
-        amount: 1200,
-        date: new Date(2026, 0, 21),
-        status: 'pending',
-        category: 'Freelance',
-      },
-      {
-        id: '6',
-        type: 'expense',
-        description: 'Online Shopping',
-        amount: 450,
-        date: new Date(2026, 0, 21),
-        status: 'success',
-        category: 'Shopping',
-      },
-      {
-        id: '7',
-        type: 'expense',
-        description: 'Gas Station',
-        amount: 75,
-        date: new Date(2026, 0, 21),
-        status: 'success',
-        category: 'Transport',
-      },
-      {
-        id: '8',
-        type: 'expense',
-        description: 'Gym Membership',
-        amount: 50,
-        date: new Date(2026, 0, 21),
-        status: 'success',
-        category: 'Health & Fitness',
-      },
-    ],
-    expenseSplit: [
-      { category: 'Food & Dining', amount: 335.5, percentage: 31 },
-      { category: 'Utilities', amount: 120, percentage: 11 },
-      { category: 'Shopping', amount: 450, percentage: 42 },
-      { category: 'Transport', amount: 75, percentage: 7 },
-      { category: 'Health & Fitness', amount: 50, percentage: 5 },
-    ],
-  };
+  constructor(private http: HttpClient) {}
 
-  constructor() {}
+  private loadRawTransactions(): Observable<RawTransaction[]> {
+    return this.http
+      .get<RawTransaction[]>('assets/mock-data/transactions.json')
+      .pipe(delay(200));
+  }
 
   getDashboardData(): Observable<DashboardData> {
-    return of(this.mockData).pipe(delay(500));
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return this.loadRawTransactions().pipe(
+      map((raw) => {
+        // assume data is ordered by date ascending; if not, sort
+        const sorted = [...raw].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+
+        const totalBalance = sorted.length
+          ? sorted[sorted.length - 1].current_balance
+          : 0;
+
+        const transactions: Transaction[] = sorted.map((t): Transaction => ({
+          id: t.transaction_id,
+          type: (t.direction === 'credit' ? 'income' : 'expense') as
+            | 'income'
+            | 'expense',
+          description: t.description,
+          amount: t.amount,
+          date: new Date(t.date),
+          status: t.status,
+          category: t.category,
+        }));
+
+        const currentMonthTx = sorted.filter((t) => {
+          const d = new Date(t.date);
+          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        });
+
+        const monthlyIncome = currentMonthTx
+          .filter((t) => t.direction === 'credit')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const monthlyExpense = currentMonthTx
+          .filter((t) => t.direction === 'debit')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        // Weekly income/expense: last 7 days including today
+        const oneWeekAgo = new Date(now);
+        oneWeekAgo.setDate(now.getDate() - 7);
+
+        const weekTx = sorted.filter((t) => {
+          const d = new Date(t.date);
+          return d >= oneWeekAgo && d <= now;
+        });
+
+        const weeklyIncome = weekTx
+          .filter((t) => t.direction === 'credit')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const weeklyExpense = weekTx
+          .filter((t) => t.direction === 'debit')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        // Last month net revenue (income - expense)
+        const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
+        const prevMonth = prevMonthDate.getMonth();
+        const prevYear = prevMonthDate.getFullYear();
+
+        const lastMonthTx = sorted.filter((t) => {
+          const d = new Date(t.date);
+          return d.getMonth() === prevMonth && d.getFullYear() === prevYear;
+        });
+
+        const lastMonthIncome = lastMonthTx
+          .filter((t) => t.direction === 'credit')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const lastMonthExpense = lastMonthTx
+          .filter((t) => t.direction === 'debit')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const lastMonthNetRevenue = lastMonthIncome - lastMonthExpense;
+
+        const expenseByCategoryMap = new Map<string, number>();
+        currentMonthTx
+          .filter((t) => t.direction === 'debit')
+          .forEach((t) => {
+            expenseByCategoryMap.set(
+              t.category,
+              (expenseByCategoryMap.get(t.category) || 0) + t.amount
+            );
+          });
+
+        const expenseSplitArray = Array.from(expenseByCategoryMap.entries()).map(
+          ([category, amount]) => ({ category, amount })
+        );
+
+        const totalExpenseForSplit = expenseSplitArray.reduce(
+          (sum, item) => sum + item.amount,
+          0
+        );
+
+        const expenseSplit = expenseSplitArray.map((item) => ({
+          category: item.category,
+          amount: item.amount,
+          percentage: totalExpenseForSplit
+            ? Math.round((item.amount / totalExpenseForSplit) * 100)
+            : 0,
+        }));
+
+        // Revenue flow for last 6 months (including current), by month net
+        const revenueFlowRaw: { label: string; net: number }[] = [];
+
+        for (let i = 5; i >= 0; i--) {
+          const dateForMonth = new Date(currentYear, currentMonth - i, 1);
+          const m = dateForMonth.getMonth();
+          const y = dateForMonth.getFullYear();
+
+          const monthTx = sorted.filter((t) => {
+            const d = new Date(t.date);
+            return d.getMonth() === m && d.getFullYear() === y;
+          });
+
+          const monthIncome = monthTx
+            .filter((t) => t.direction === 'credit')
+            .reduce((sum, t) => sum + t.amount, 0);
+
+          const monthExpense = monthTx
+            .filter((t) => t.direction === 'debit')
+            .reduce((sum, t) => sum + t.amount, 0);
+
+          const net = monthIncome - monthExpense;
+          const label = dateForMonth.toLocaleString('en-US', { month: 'short' });
+
+          revenueFlowRaw.push({ label, net });
+        }
+
+        const maxAbsNet = revenueFlowRaw.reduce(
+          (max, item) => Math.max(max, Math.abs(item.net)),
+          0
+        );
+
+        const revenueFlow = revenueFlowRaw.map((item) => ({
+          label: item.label,
+          net: item.net,
+          netPercent: maxAbsNet ? Math.round((Math.abs(item.net) / maxAbsNet) * 100) : 0,
+        }));
+
+        return {
+          totalBalance,
+          monthlyIncome,
+          monthlyExpense,
+          weeklyIncome,
+          weeklyExpense,
+          lastMonthNetRevenue,
+          revenueFlow,
+          transactions,
+          expenseSplit,
+        };
+      })
+    );
   }
 
   getTransactions(): Observable<Transaction[]> {
-    return of(this.mockData.transactions).pipe(delay(400));
+    return this.loadRawTransactions().pipe(
+      map((raw) =>
+        raw
+          .map((t): Transaction => ({
+            id: t.transaction_id,
+            type: (t.direction === 'credit' ? 'income' : 'expense') as
+              | 'income'
+              | 'expense',
+            description: t.description,
+            amount: t.amount,
+            date: new Date(t.date),
+            status: t.status,
+            category: t.category,
+          }))
+          .sort((a, b) => b.date.getTime() - a.date.getTime())
+      )
+    );
   }
 
   addTransaction(transaction: Omit<Transaction, 'id'>): Observable<Transaction> {
+    // For now, simply echo back the transaction as a mock behavior.
     return new Observable((observer) => {
       setTimeout(() => {
         const newTransaction: Transaction = {
           ...transaction,
-          id: String(this.mockData.transactions.length + 1),
+          id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
         };
-        this.mockData.transactions.unshift(newTransaction);
         observer.next(newTransaction);
         observer.complete();
       }, 500);

@@ -12,7 +12,11 @@
       <div class="balance-card">
         <div class="balance-label">Total balance</div>
         <div class="balance-amount">{{formatNumber(dashboardData.totalBalance)}}<sup>$</sup></div>
-        <div class="balance-change">+{{formatCurrency(2456)}} revenue from last month</div>
+        <div class="balance-change">
+          <span *ngIf="dashboardData.lastMonthNetRevenue >= 0">+{{formatNumber(dashboardData.lastMonthNetRevenue)}}</span>
+          <span *ngIf="dashboardData.lastMonthNetRevenue < 0">-{{formatNumber(-dashboardData.lastMonthNetRevenue)}}</span>
+          <sup>$</sup> revenue from last month
+        </div>
         <div class="balance-actions">
           <button class="btn-transfer">Transfer</button>
           <button class="btn-topup">Top Up</button>
@@ -22,7 +26,7 @@
       <!-- Income Card -->
       <div class="stat-card stat-income">
         <div class="stat-label">Income</div>
-        <div class="stat-value">+{{formatNumber(dashboardData.monthlyIncome/4)}}<sup>$</sup></div>
+        <div class="stat-value">+{{formatNumber(dashboardData.weeklyIncome)}}<sup>$</sup></div>
         <div class="stat-footer">
           <span>This week's income</span>
           <span class="badge-up"></span>
@@ -32,7 +36,7 @@
       <!-- Expense Card -->
       <div class="stat-card stat-expense">
         <div class="stat-label">Expense</div>
-        <div class="stat-value">-{{formatNumber(dashboardData.monthlyExpense/4)}}<sup>$</sup></div>
+        <div class="stat-value">-{{formatNumber(dashboardData.weeklyExpense)}}<sup>$</sup></div>
         <div class="stat-footer">
           <span>This week's expense</span>
           <span class="badge-down"></span>
@@ -52,28 +56,14 @@
           </div>
         </div>
         <div class="bar-chart">
-          <div class="bar" style="height: 55%">
-            <span class="bar-label">Apr</span>
+          <div
+            class="bar"
+            *ngFor="let item of dashboardData.revenueFlow; let last = last"
+            [class.active]="last"
+            [style.height.%]="item.netPercent || 0"
+          >
+            <span class="bar-label">{{item.label}}</span>
             <span class="bar-value"></span>
-          </div>
-          <div class="bar" style="height: 70%">
-            <span class="bar-label">May</span>
-            <span class="bar-value"></span>
-          </div>
-          <div class="bar" style="height: 60%">
-            <span class="bar-label">Jun</span>
-            <span class="bar-value"></span>
-          </div>
-          <div class="bar" style="height: 65%">
-            <span class="bar-label">Jul</span>
-            <span class="bar-value"></span>
-          </div>
-          <div class="bar active" style="height: 85%">
-            <span class="bar-label">Aug</span>
-            <div class="bar-highlight">
-              <div></div>
-              <div class="perc"></div>
-            </div>
           </div>
         </div>
       </div>
@@ -82,35 +72,38 @@
       <div class="chart-card">
         <div class="chart-header">
           <h3>Expense split</h3>
-          <select><option>Aug</option></select>
+          <select [value]="selectedMonthKey" (change)="onMonthChange($event)">
+            <option *ngFor="let m of monthOptions" [value]="m.value">{{m.label}}</option>
+          </select>
         </div>
         <div class="donut-container">
           <div class="donut-chart">
             <svg viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#FFD93D" stroke-width="30" stroke-dasharray="126 377" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#60A5FA" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-126" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#F472B6" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-164" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#A78BFA" stroke-width="30" stroke-dasharray="63 377" stroke-dashoffset="-202" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#34D399" stroke-width="30" stroke-dasharray="75 377" stroke-dashoffset="-265" transform="rotate(-90 100 100)"></circle>
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#FBBF24" stroke-width="30" stroke-dasharray="38 377" stroke-dashoffset="-340" transform="rotate(-90 100 100)"></circle>
+              <circle
+                *ngFor="let seg of donutSegments"
+                cx="100"
+                cy="100"
+                r="80"
+                fill="none"
+                [attr.stroke]="seg.color"
+                stroke-width="30"
+                [attr.stroke-dasharray]="seg.dashArray"
+                [attr.stroke-dashoffset]="seg.dashOffset"
+                transform="rotate(-90 100 100)"
+              ></circle>
             </svg>
             <div class="donut-center">
               <div>Total</div>
-              <div class="donut-value">{{formatNumber(dashboardData.monthlyExpense)}}<sup>$</sup></div>
+              <div class="donut-value">{{formatNumber(selectedMonthlyExpense || 0)}}<sup>$</sup></div>
             </div>
           </div>
           <div class="legend">
-            <div class="legend-row">
-              <div><span class="dot food"></span> Food <span></span></div>
-              <div><span class="dot ent"></span> Entertainment <span></span></div>
-            </div>
-            <div class="legend-row">
-              <div><span class="dot health"></span> Health <span></span></div>
-              <div><span class="dot transport"></span> Transportation <span></span></div>
-            </div>
-            <div class="legend-row">
-              <div><span class="dot bills"></span> Bills <span></span></div>
-              <div><span class="dot misc"></span> Miscellaneous <span></span></div>
+            <div class="legend-row" *ngFor="let item of selectedExpenseSplit">
+              <div>
+                <span class="dot" [style.backgroundColor]="getCategoryColor(item.category)"></span>
+                {{item.category}}
+                <span>{{formatNumber(item.amount)}}$ ({{item.percentage}}%)</span>
+              </div>
             </div>
           </div>
         </div>
