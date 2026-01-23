@@ -27,7 +27,7 @@ export interface DashboardData {
   weeklyIncome: number;
   weeklyExpense: number;
   lastMonthNetRevenue: number;
-  revenueFlow: { label: string; net: number; netPercent: number }[];
+  revenueFlow: { label: string; net: number; netPercent: number; year: number; month: number }[];
   transactions: Transaction[];
   expenseSplit: { category: string; amount: number; percentage: number }[];
 }
@@ -162,7 +162,7 @@ export class FinanceService {
         }));
 
         // Revenue flow for last 6 months (including current), by month net
-        const revenueFlowRaw: { label: string; net: number }[] = [];
+        const revenueFlowRaw: { label: string; net: number; year: number; month: number }[] = [];
 
         for (let i = 5; i >= 0; i--) {
           const dateForMonth = new Date(currentYear, currentMonth - i, 1);
@@ -185,7 +185,7 @@ export class FinanceService {
           const net = monthIncome - monthExpense;
           const label = dateForMonth.toLocaleString('en-US', { month: 'short' });
 
-          revenueFlowRaw.push({ label, net });
+          revenueFlowRaw.push({ label, net, year: y, month: m });
         }
 
         const maxAbsNet = revenueFlowRaw.reduce(
@@ -197,6 +197,8 @@ export class FinanceService {
           label: item.label,
           net: item.net,
           netPercent: maxAbsNet ? Math.round((Math.abs(item.net) / maxAbsNet) * 100) : 0,
+          year: item.year,
+          month: item.month,
         }));
 
         return {

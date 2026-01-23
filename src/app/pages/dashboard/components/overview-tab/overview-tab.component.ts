@@ -18,6 +18,7 @@ export class OverviewTabComponent implements OnInit {
   selectedMonthKey: string | null = null;
   selectedExpenseSplit: { category: string; amount: number; percentage: number }[] = [];
   selectedMonthlyExpense = 0;
+  selectedMonthlyIncome = 0;
 
   constructor(private financeService: FinanceService) {}
 
@@ -61,6 +62,17 @@ export class OverviewTabComponent implements OnInit {
   onMonthChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
     this.selectedMonthKey = target.value;
+    this.recalculateForSelectedMonth();
+  }
+
+  formatSignedAmount(value: number): string {
+    const sign = value >= 0 ? '+' : '-';
+    const abs = Math.abs(value);
+    return `${sign}${this.formatNumber(abs)}`;
+  }
+
+  onRevenueBarClick(item: { year: number; month: number }): void {
+    this.selectedMonthKey = `${item.year}-${item.month}`;
     this.recalculateForSelectedMonth();
   }
 
@@ -150,7 +162,13 @@ export class OverviewTabComponent implements OnInit {
       return d.getMonth() === selected.month && d.getFullYear() === selected.year && t.type === 'expense';
     });
 
+    const monthIncomes = this.dashboardData.transactions.filter((t) => {
+      const d = new Date(t.date);
+      return d.getMonth() === selected.month && d.getFullYear() === selected.year && t.type === 'income';
+    });
+
     const totalExpense = monthExpenses.reduce((sum, t) => sum + t.amount, 0);
+    const totalIncome = monthIncomes.reduce((sum, t) => sum + t.amount, 0);
 
     const byCategory = new Map<string, number>();
     monthExpenses.forEach((t) => {
@@ -170,6 +188,7 @@ export class OverviewTabComponent implements OnInit {
 
     this.selectedExpenseSplit = split;
     this.selectedMonthlyExpense = totalExpense;
+    this.selectedMonthlyIncome = totalIncome;
     this.donutSegments = this.buildDonutSegments(split);
   }
 

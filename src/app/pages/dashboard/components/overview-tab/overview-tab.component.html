@@ -26,9 +26,9 @@
       <!-- Income Card -->
       <div class="stat-card stat-income">
         <div class="stat-label">Income</div>
-        <div class="stat-value">+{{formatNumber(dashboardData.weeklyIncome)}}<sup>$</sup></div>
+        <div class="stat-value">+{{formatNumber(selectedMonthlyIncome || 0)}}<sup>$</sup></div>
         <div class="stat-footer">
-          <span>This week's income</span>
+          <span>This month's income</span>
           <span class="badge-up"></span>
         </div>
       </div>
@@ -36,9 +36,9 @@
       <!-- Expense Card -->
       <div class="stat-card stat-expense">
         <div class="stat-label">Expense</div>
-        <div class="stat-value">-{{formatNumber(dashboardData.weeklyExpense)}}<sup>$</sup></div>
+        <div class="stat-value">-{{formatNumber(selectedMonthlyExpense || 0)}}<sup>$</sup></div>
         <div class="stat-footer">
-          <span>This week's expense</span>
+          <span>This month's expense</span>
           <span class="badge-down"></span>
         </div>
       </div>
@@ -61,9 +61,10 @@
             *ngFor="let item of dashboardData.revenueFlow; let last = last"
             [class.active]="last"
             [style.height.%]="item.netPercent || 0"
+            (click)="onRevenueBarClick(item)"
           >
             <span class="bar-label">{{item.label}}</span>
-            <span class="bar-value"></span>
+            <span class="bar-value">{{formatSignedAmount(item.net)}}$</span>
           </div>
         </div>
       </div>
