@@ -4,6 +4,9 @@
   "description": "MCP Server for FinanceHub ChatGPT App using OpenAI Apps SDK",
   "type": "module",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "dev:stdio": "tsx src/stdio.ts",
