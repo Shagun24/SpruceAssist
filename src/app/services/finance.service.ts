@@ -13,6 +13,13 @@ export interface Transaction {
   category: string;
 }
 
+export interface BudgetItem {
+  category: string;
+  limit: number;
+  spent: number;
+  percentage: number;
+}
+
 export interface DashboardData {
   totalBalance: number;
   monthlyIncome: number;

@@ -814,3 +814,104 @@
     }
   }
 }
+
+// BUDGET TRACKER
+.budget-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  width: 100%;
+}
+
+.budget-card {
+  .budget-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 8px 0;
+  }
+
+  .budget-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .budget-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      .budget-category {
+        font-size: 14px;
+        font-weight: 500;
+        color: #e2e8f0;
+      }
+
+      .budget-amount {
+        font-size: 12px;
+        color: #9fa8c0;
+        font-weight: 500;
+      }
+    }
+
+    .budget-bar-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .budget-bar-bg {
+        flex: 1;
+        height: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
+        overflow: hidden;
+        position: relative;
+
+        .budget-bar-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #60A5FA, #3B82F6);
+          border-radius: 6px;
+          transition: width 0.6s ease-in-out;
+          position: relative;
+
+          &::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            animation: shimmer 2s infinite;
+          }
+
+          &.warning {
+            background: linear-gradient(90deg, #FBBF24, #F59E0B);
+          }
+
+          &.good {
+            background: linear-gradient(90deg, #34D399, #10B981);
+          }
+        }
+      }
+
+      .budget-percentage {
+        font-size: 12px;
+        font-weight: 600;
+        color: #9fa8c0;
+        min-width: 40px;
+        text-align: right;
+      }
+    }
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
