@@ -1,9 +1,6 @@
-name: Deploy to Azure Web App
+name: Deploy to Azure Web App (Disabled)
 
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
 
 env:
