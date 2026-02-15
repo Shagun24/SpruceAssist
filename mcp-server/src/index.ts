@@ -687,8 +687,33 @@ function generateFinancialAdvice(question: string, context: any) {
     recommendations: []
   };
   
+  // Normalize question to lowercase for matching
+  const q = question.toLowerCase().trim();
+  
+  // Cryptocurrency questions (check BEFORE general investment)
+  if (q.includes("crypto") || q.includes("bitcoin") || q.includes("ethereum") || q.includes("btc") || q.includes("blockchain")) {
+    response.advice = `Cryptocurrency is highly volatile and speculative. With your ${context.savingsRate}% savings rate and $${context.totalBalance} balance, here's a cautious approach:`;
+    response.data = { 
+      currentBalance: context.totalBalance,
+      monthlyIncome: context.monthlyIncome,
+      savingsRate: context.savingsRate + "%"
+    };
+    response.recommendations = [
+      `Only invest what you can afford to lose (max 5% of portfolio)`,
+      `Build emergency fund first (6 months expenses = $${context.monthlyExpense * 6})`,
+      `Prioritize 401(k) match and IRA contributions before crypto`,
+      `Never invest borrowed money or emergency funds in crypto`,
+      `Research thoroughly - Bitcoin and Ethereum are more established`,
+      `Use reputable exchanges like Coinbase or Kraken`,
+      `Consider crypto as speculation, not investment`,
+      `Be prepared for 50-80% price swings`,
+      `Don't invest based on FOMO or hype`
+    ];
+    return response;
+  }
+  
   // Savings-related questions
-  if (question.includes("save") || question.includes("saving")) {
+  if (q.includes("save") || q.includes("saving")) {
     const potentialSavings = context.monthlyIncome - context.monthlyExpense;
     response.advice = `Based on your current income of $${context.monthlyIncome} and expenses of $${context.monthlyExpense}, you're saving $${potentialSavings} per month (${context.savingsRate}% savings rate).`;
     
@@ -707,10 +732,11 @@ function generateFinancialAdvice(question: string, context: any) {
       const reduction = Math.round(amount * 0.2);
       return `Reduce ${category} spending by 20% (from $${amount} to $${amount - reduction}) to save an additional $${reduction}/month`;
     });
+    return response;
   }
   
   // Budget-related questions
-  else if (question.includes("budget") || question.includes("spending") || question.includes("expense")) {
+  if (q.includes("budget") || q.includes("spending") || q.includes("expense")) {
     response.advice = `Your total monthly budget is $${context.monthlyExpense}. Here's how it breaks down:`;
     response.data = context.expenseBreakdown;
     
@@ -722,10 +748,11 @@ function generateFinancialAdvice(question: string, context: any) {
       `Consider the 50/30/20 rule: 50% needs, 30% wants, 20% savings`,
       `Your current allocation: ${((context.monthlyExpense / context.monthlyIncome) * 100).toFixed(1)}% expenses, ${context.savingsRate}% savings`
     ];
+    return response;
   }
   
   // Transportation questions
-  else if (question.includes("transport") || question.includes("gas") || question.includes("car") || question.includes("commute") || question.includes("uber") || question.includes("lyft")) {
+  if (q.includes("transport") || q.includes("gas") || q.includes("car") || q.includes("commute") || q.includes("uber") || q.includes("lyft")) {
     const transportBudget = context.budgets.transportation?.monthly_limit || 0;
     response.advice = `Your monthly transportation budget is $${transportBudget}. Here are ways to optimize:`;
     response.data = { currentBudget: transportBudget };
@@ -737,10 +764,11 @@ function generateFinancialAdvice(question: string, context: any) {
       `Compare gas prices using apps like GasBuddy`,
       `Work from home when possible to reduce commute costs`
     ];
+    return response;
   }
   
   // Dining/food questions
-  else if (question.includes("food") || question.includes("dining") || question.includes("restaurant") || question.includes("eat") || question.includes("groceries") || question.includes("meal")) {
+  if (q.includes("food") || q.includes("dining") || q.includes("restaurant") || q.includes("eat") || q.includes("groceries") || q.includes("meal")) {
     const diningBudget = context.budgets.dining?.monthly_limit || 0;
     const groceryBudget = context.budgets.groceries?.monthly_limit || 0;
     response.advice = `Your food expenses: Dining out $${diningBudget}, Groceries $${groceryBudget}/month. Here's how to save:`;
@@ -754,10 +782,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Buy generic brands to save 20-30% on groceries`,
       `Use apps like Too Good To Go for discounted meals`
     ];
+    return response;
   }
   
+
   // Entertainment questions
-  else if (question.includes("entertainment") || question.includes("fun") || question.includes("activities") || question.includes("hobby") || question.includes("movie") || question.includes("streaming")) {
+  if (q.includes("entertainment") || q.includes("fun") || q.includes("activities") || q.includes("hobby") || q.includes("movie") || q.includes("streaming")) {
     const entertainmentBudget = context.budgets.entertainment?.monthly_limit || 0;
     response.advice = `You're budgeting $${entertainmentBudget}/month for entertainment. Smart ways to enjoy life affordably:`;
     response.data = { currentBudget: entertainmentBudget };
@@ -770,10 +800,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Visit libraries for free books, movies, and events`,
       `Take advantage of free trial periods for new services`
     ];
+    return response;
   }
   
+
   // Goals-related questions
-  else if (question.includes("goal") || question.includes("target") || question.includes("achieve") || question.includes("plan")) {
+  if (q.includes("goal") || q.includes("target") || q.includes("achieve") || q.includes("plan")) {
     response.advice = `You have ${context.savingsGoals.length} active savings goals:`;
     response.data = { goals: context.savingsGoals };
     
@@ -789,10 +821,11 @@ function generateFinancialAdvice(question: string, context: any) {
     if (currentSavings > 0) {
       response.recommendations.push(`You could increase contributions by $${Math.round(currentSavings * 0.2)} to reach goals faster`);
     }
+    return response;
   }
   
   // Shopping questions
-  else if (question.includes("shop") || question.includes("purchase") || question.includes("buy") || question.includes("amazon") || question.includes("online shopping")) {
+  if (q.includes("shop") || q.includes("purchase") || q.includes("buy") || q.includes("amazon") || q.includes("online shopping")) {
     const shoppingBudget = context.budgets.shopping?.monthly_limit || 0;
     response.advice = `Your shopping budget is $${shoppingBudget}/month. Smart shopping strategies:`;
     response.data = { currentBudget: shoppingBudget };
@@ -806,10 +839,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Unsubscribe from promotional emails to reduce temptation`,
       `Use price tracking tools to buy at optimal times`
     ];
+    return response;
   }
   
+
   // Investment questions
-  else if (question.includes("invest") || question.includes("retirement") || question.includes("401k") || question.includes("ira") || question.includes("stock") || question.includes("portfolio")) {
+  if (q.includes("invest") || q.includes("retirement") || q.includes("401k") || q.includes("ira") || q.includes("stock") || q.includes("portfolio")) {
     const monthlySavings = context.monthlyIncome - context.monthlyExpense;
     response.advice = `With $${monthlySavings}/month in surplus, here's an investment strategy:`;
     response.data = { monthlySurplus: monthlySavings };
@@ -822,10 +857,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Automate investments with dollar-cost averaging`,
       `Consider HSA for triple tax benefits if eligible`
     ];
+    return response;
   }
   
+
   // Debt questions
-  else if (question.includes("debt") || question.includes("loan") || question.includes("credit card") || question.includes("pay off") || question.includes("owe")) {
+  if (q.includes("debt") || q.includes("loan") || q.includes("credit card") || q.includes("pay off") || q.includes("owe")) {
     response.advice = `Managing debt effectively is crucial for financial health. Here's your strategy:`;
     response.data = { monthlyIncome: context.monthlyIncome, monthlyExpense: context.monthlyExpense };
     response.recommendations = [
@@ -837,10 +874,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Make bi-weekly payments instead of monthly to save interest`,
       `Snowball method: pay smallest debt first for psychological wins`
     ];
+    return response;
   }
   
+
   // Emergency fund questions
-  else if (question.includes("emergency") || question.includes("rainy day") || question.includes("unexpected")) {
+  if (q.includes("emergency") || q.includes("rainy day") || q.includes("unexpected")) {
     const recommendedEmergency = context.monthlyExpense * 6;
     const currentSavings = context.monthlyIncome - context.monthlyExpense;
     response.advice = `Your recommended emergency fund is $${recommendedEmergency} (6 months of expenses). Here's how to build it:`;
@@ -853,10 +892,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Only use for true emergencies: job loss, medical, urgent repairs`,
       `Replenish immediately after using emergency funds`
     ];
+    return response;
   }
   
+
   // Bills and utilities questions
-  else if (question.includes("bill") || question.includes("utilities") || question.includes("electricity") || question.includes("water") || question.includes("internet") || question.includes("phone")) {
+  if (q.includes("bill") || q.includes("utilities") || q.includes("electricity") || q.includes("water") || q.includes("internet") || q.includes("phone")) {
     const billsBudget = context.budgets.bills?.monthly_limit || 0;
     response.advice = `Your monthly bills budget is $${billsBudget}. Ways to reduce recurring expenses:`;
     response.data = { currentBudget: billsBudget };
@@ -869,10 +910,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Compare insurance rates yearly for better deals`,
       `Use budget billing to avoid seasonal spikes`
     ];
+    return response;
   }
   
+
   // Healthcare questions
-  else if (question.includes("health") || question.includes("medical") || question.includes("insurance") || question.includes("doctor") || question.includes("prescription")) {
+  if (q.includes("health") || q.includes("medical") || q.includes("insurance") || q.includes("doctor") || q.includes("prescription")) {
     const healthcareBudget = context.budgets.healthcare?.monthly_limit || 0;
     response.advice = `Your healthcare budget is $${healthcareBudget}/month. Smart healthcare spending strategies:`;
     response.data = { currentBudget: healthcareBudget };
@@ -885,10 +928,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Negotiate medical bills - ask for itemized statements`,
       `Stay in-network to avoid surprise bills`
     ];
+    return response;
   }
   
+
   // Travel and vacation questions
-  else if (question.includes("travel") || question.includes("vacation") || question.includes("trip") || question.includes("holiday")) {
+  if (q.includes("travel") || q.includes("vacation") || q.includes("trip") || q.includes("holiday")) {
     const travelBudget = context.budgets.travel?.monthly_limit || 0;
     response.advice = `Your travel budget is $${travelBudget}/month. Smart travel planning tips:`;
     response.data = { currentBudget: travelBudget, annualBudget: travelBudget * 12 };
@@ -902,10 +947,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Look for free walking tours and activities`,
       `Cook some meals if accommodation has kitchen`
     ];
+    return response;
   }
   
+
   // Income and side hustle questions
-  else if (question.includes("income") || question.includes("earn more") || question.includes("side hustle") || question.includes("raise") || question.includes("promotion")) {
+  if (q.includes("income") || q.includes("earn more") || q.includes("side hustle") || q.includes("raise") || q.includes("promotion")) {
     response.advice = `Your current monthly income is $${context.monthlyIncome}. Ways to increase earnings:`;
     response.data = { currentIncome: context.monthlyIncome };
     response.recommendations = [
@@ -918,10 +965,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Invest in skills that increase earning potential`,
       `Consider job hopping - often 10-20% salary increase`
     ];
+    return response;
   }
   
+
   // Credit score questions
-  else if (question.includes("credit score") || question.includes("credit report") || question.includes("credit rating")) {
+  if (q.includes("credit score") || q.includes("credit report") || q.includes("credit rating")) {
     response.advice = `Building and maintaining good credit (700+) saves money on loans and rates:`;
     response.data = { monthlyIncome: context.monthlyIncome };
     response.recommendations = [
@@ -934,10 +983,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Avoid applying for multiple cards in short period`,
       `Use credit monitoring apps to track score`
     ];
+    return response;
   }
   
+
   // Tax questions
-  else if (question.includes("tax") || question.includes("deduction") || question.includes("refund") || question.includes("irs")) {
+  if (q.includes("tax") || q.includes("deduction") || q.includes("refund") || q.includes("irs")) {
     response.advice = `Smart tax strategies to keep more of your $${context.monthlyIncome} monthly income:`;
     response.data = { annualIncome: context.monthlyIncome * 12 };
     response.recommendations = [
@@ -950,10 +1001,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Use tax software or consult CPA for complex situations`,
       `Adjust W-4 withholding to avoid large refund (use money now)`
     ];
+    return response;
   }
   
+
   // Insurance questions
-  else if (question.includes("insurance") && !question.includes("health")) {
+  if (q.includes("insurance") && !q.includes("health")) {
     response.advice = `Insurance protects your finances but can be optimized:`;
     response.data = { monthlyExpense: context.monthlyExpense };
     response.recommendations = [
@@ -966,10 +1019,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Consider umbrella policy for extra liability protection`,
       `Review coverage annually to avoid over-insuring`
     ];
+    return response;
   }
   
+
   // Housing and rent questions
-  else if (question.includes("rent") || question.includes("mortgage") || question.includes("housing") || question.includes("apartment") || question.includes("house")) {
+  if (q.includes("rent") || q.includes("mortgage") || q.includes("housing") || q.includes("apartment") || q.includes("house")) {
     const housingBudget = context.budgets.bills?.monthly_limit || 0;
     response.advice = `Housing typically should be under 30% of income. Your bills budget (including rent) is $${housingBudget}:`;
     response.data = { housingBudget, incomePercentage: ((housingBudget / context.monthlyIncome) * 100).toFixed(1) };
@@ -982,10 +1037,12 @@ function generateFinancialAdvice(question: string, context: any) {
       `Reduce utility costs with energy-efficient upgrades`,
       `Research first-time homebuyer programs in your area`
     ];
+    return response;
   }
   
+
   // Education questions
-  else if (question.includes("education") || question.includes("student loan") || question.includes("college") || question.includes("tuition") || question.includes("degree")) {
+  if (q.includes("education") || q.includes("student loan") || q.includes("college") || q.includes("tuition") || q.includes("degree")) {
     response.advice = `Education investment strategies based on your $${context.monthlyIncome} monthly income:`;
     response.data = { monthlyIncome: context.monthlyIncome };
     response.recommendations = [
@@ -998,27 +1055,26 @@ function generateFinancialAdvice(question: string, context: any) {
       `Invest in skills with high ROI for your field`,
       `Explore free online courses (Coursera, edX) first`
     ];
+    return response;
   }
   
-  // General financial health
-  else {
-    response.advice = `Your financial health summary: Income $${context.monthlyIncome}, Expenses $${context.monthlyExpense}, Savings Rate ${context.savingsRate}%. You're in good shape!`;
-    response.data = {
-      income: context.monthlyIncome,
-      expenses: context.monthlyExpense,
-      savingsRate: context.savingsRate + "%",
-      totalBalance: context.totalBalance
-    };
-    response.recommendations = [
-      `Your ${context.savingsRate}% savings rate is excellent (aim for 20%+)`,
-      `Top expense: ${Object.entries(context.expenseBreakdown)[0][0]} at $${Object.entries(context.expenseBreakdown)[0][1]}`,
-      `Keep tracking expenses and reviewing monthly`,
-      `Consider automating savings transfers`,
-      `Review and adjust budgets quarterly`,
-      `Build emergency fund equal to 6 months expenses`,
-      `Maximize retirement contributions for compound growth`
-    ];
-  }
+  // General financial health (default fallback)
+  response.advice = `Your financial health summary: Income $${context.monthlyIncome}, Expenses $${context.monthlyExpense}, Savings Rate ${context.savingsRate}%. You're in good shape!`;
+  response.data = {
+    income: context.monthlyIncome,
+    expenses: context.monthlyExpense,
+    savingsRate: context.savingsRate + "%",
+    totalBalance: context.totalBalance
+  };
+  response.recommendations = [
+    `Your ${context.savingsRate}% savings rate is excellent (aim for 20%+)`,
+    `Top expense: ${Object.entries(context.expenseBreakdown)[0][0]} at $${Object.entries(context.expenseBreakdown)[0][1]}`,
+    `Keep tracking expenses and reviewing monthly`,
+    `Consider automating savings transfers`,
+    `Review and adjust budgets quarterly`,
+    `Build emergency fund equal to 6 months expenses`,
+    `Maximize retirement contributions for compound growth`
+  ];
   
   return response;
 }

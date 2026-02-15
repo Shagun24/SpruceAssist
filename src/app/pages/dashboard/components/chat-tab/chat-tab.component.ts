@@ -71,12 +71,24 @@ export class ChatTabComponent implements OnInit, AfterViewChecked {
     this.userInput = '';
     this.isLoading = true;
 
-    // Simulate AI response
+    // Use built-in AI financial advisor (no backend required)
     setTimeout(() => {
-      const response = this.generateFinancialAdvice(userMessage);
-      this.addMessage(response, 'assistant');
+      const advice = this.generateFinancialAdvice(userMessage);
+      this.addMessage(advice, 'assistant');
       this.isLoading = false;
-    }, 1000);
+    }, 800);
+  }
+
+  private formatAdviceResponse(response: any): string {
+    let formatted = response.advice + '\n\n';
+    
+    if (response.recommendations && response.recommendations.length > 0) {
+      response.recommendations.forEach((rec: string, index: number) => {
+        formatted += `${index + 1}. ${rec}\n`;
+      });
+    }
+    
+    return formatted.trim();
   }
 
   private addMessage(content: string, sender: 'user' | 'assistant'): void {

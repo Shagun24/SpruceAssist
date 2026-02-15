@@ -289,4 +289,14 @@ export class FinanceService {
       }, 500);
     });
   }
+
+  getFinancialAdvice(question: string): Observable<any> {
+    const API_URL = 'http://localhost:8000/api/financial-advice';
+    const API_KEY = 'dev-api-key-12345';
+    
+    return this.http.post(API_URL, 
+      { question },
+      { headers: { 'X-API-Key': API_KEY } }
+    );
+  }
 }
