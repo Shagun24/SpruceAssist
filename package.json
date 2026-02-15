@@ -6,6 +6,8 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:prod": "ng build --configuration production",
+    "build:github": "ng build --configuration production --base-href=/SpruceAssist/",
     "watch": "ng build --watch --configuration development",
     "server:setup": "cd mcp-server && npm install && npm run build",
     "server:dev": "cd mcp-server && npm run dev",
