@@ -6,3 +6,8 @@ dist/
 .DS_Store
 .env.local
 .env.*.local
+*.backup
+*.md.backup
+mcp-server/node_modules
+mcp-server/dist
+src/assets/mock-data/*.json

@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/9ffc0707-c5c2-4214-a871-df5e7fd52608/resourceGroups/gptGenesis/providers/Microsoft.Web/sites/SpruceAssist",
+    "appService.deploySubpath": "."
+}

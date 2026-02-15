@@ -1,9 +1,4 @@
-[config]
-# Disabled in favor of GitHub Actions workflow
-# command = deploy.sh
-project = .
-
-[exclude]
+# Documentation files
 *.md
 CHATGPT_INTEGRATION_COMPLETE.md
 COMPONENTS.md
@@ -29,10 +24,14 @@ START_HERE.md
 STYLING.md
 SUBMISSION_GUIDE.md
 TEST_API.md
+
+# Scripts
 deploy.sh
-.git
-.angular
-node_modules
-*.log
+
+# Development files
+.angular/
+.git/
 *.backup
-src/assets/mock-data
+
+# Mock data (use API in production)
+src/assets/mock-data/
