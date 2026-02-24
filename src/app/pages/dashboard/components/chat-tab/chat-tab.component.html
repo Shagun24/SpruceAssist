@@ -20,7 +20,10 @@
       </div>
       <div class="message-content">
         <div class="message-text">{{ message.content }}</div>
-        <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+        <div class="message-meta">
+          <div class="message-source" *ngIf="message.source">{{ message.source }}</div>
+          <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+        </div>
       </div>
     </div>
 
@@ -88,6 +91,10 @@
       </button>
     </div>
 
+    <div class="voice-status" *ngIf="voiceStatusMessage">
+      {{ voiceStatusMessage }}
+    </div>
+
     <form class="chat-input-form" (submit)="sendMessage(); $event.preventDefault()">
       <input
         type="text"
@@ -98,6 +105,16 @@
         [disabled]="isLoading"
         autocomplete="off"
       />
+      <button
+        type="button"
+        class="voice-button"
+        [class.listening]="isListening"
+        [disabled]="isLoading || !isVoiceSupported"
+        (click)="toggleVoiceInput()"
+        [attr.aria-label]="isListening ? 'Stop voice input' : 'Start voice input'"
+      >
+        🎤
+      </button>
       <button
         type="submit"
         class="send-button"

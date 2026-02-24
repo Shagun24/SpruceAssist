@@ -1,13 +1,59 @@
 import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { FinanceService, DashboardData } from '../../../../services/finance.service';
+import { FinanceService, DashboardData, RedeemedLaunchContext } from '../../../../services/finance.service';
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike {
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+interface SpeechRecognitionConstructorLike {
+  new (): SpeechRecognitionLike;
+}
+
+interface VoiceWindow extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructorLike;
+  webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
+}
+
+interface FinancialAdviceResponse {
+  advice: string;
+  recommendations?: string[];
+  relevantData?: Record<string, unknown>;
+  source?: string;
+  model?: string;
+  debugReason?: string;
+}
 
 export interface ChatMessage {
   id: string;
   content: string;
   sender: 'user' | 'assistant';
   timestamp: Date;
+  source?: string;
 }
 
 @Component({
@@ -22,12 +68,18 @@ export class ChatTabComponent implements OnInit, AfterViewChecked {
   messages: ChatMessage[] = [];
   userInput: string = '';
   isLoading: boolean = false;
+  isListening = false;
+  isVoiceSupported = false;
+  voiceStatusMessage = '';
   dashboardData: DashboardData | null = null;
   private shouldScrollToBottom = false;
+  private recognition: SpeechRecognitionLike | null = null;
 
   constructor(private financeService: FinanceService) {}
 
   ngOnInit(): void {
+    this.initializeVoiceRecognition();
+
     // Load dashboard data for context
     this.financeService.getDashboardData().subscribe({
       next: (data: DashboardData) => {
@@ -40,6 +92,8 @@ export class ChatTabComponent implements OnInit, AfterViewChecked {
       'Hello! I\'m your AI financial advisor. I can help you with budgeting, savings, investments, and financial planning based on your current financial data. How can I assist you today?',
       'assistant'
     );
+
+    this.processPendingLaunchQuestion();
   }
 
   ngAfterViewChecked(): void {
@@ -66,37 +120,287 @@ export class ChatTabComponent implements OnInit, AfterViewChecked {
       return;
     }
 
-    const userMessage = this.userInput.trim();
-    this.addMessage(userMessage, 'user');
-    this.userInput = '';
-    this.isLoading = true;
+    if (this.isListening) {
+      this.stopVoiceInput();
+    }
 
-    // Use built-in AI financial advisor (no backend required)
-    setTimeout(() => {
-      const advice = this.generateFinancialAdvice(userMessage);
-      this.addMessage(advice, 'assistant');
-      this.isLoading = false;
-    }, 800);
+    const userMessage = this.userInput.trim();
+    this.userInput = '';
+    this.processUserQuestion(userMessage);
   }
 
-  private formatAdviceResponse(response: any): string {
-    let formatted = response.advice + '\n\n';
+  toggleVoiceInput(): void {
+    if (!this.isVoiceSupported || !this.recognition || this.isLoading) {
+      return;
+    }
+
+    if (this.isListening) {
+      this.stopVoiceInput();
+      return;
+    }
+
+    try {
+      this.recognition.start();
+      this.isListening = true;
+      this.voiceStatusMessage = 'Listening... speak your question';
+    } catch {
+      this.isListening = false;
+      this.voiceStatusMessage = 'Voice input is unavailable right now';
+    }
+  }
+
+  private stopVoiceInput(): void {
+    if (this.recognition) {
+      this.recognition.stop();
+    }
+    this.isListening = false;
+    this.voiceStatusMessage = '';
+  }
+
+  private initializeVoiceRecognition(): void {
+    const browserWindow = window as VoiceWindow;
+    const RecognitionConstructor =
+      browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
+
+    if (!RecognitionConstructor) {
+      this.isVoiceSupported = false;
+      this.voiceStatusMessage = 'Voice input not supported in this browser';
+      return;
+    }
+
+    this.isVoiceSupported = true;
+    this.recognition = new RecognitionConstructor();
+    this.recognition.lang = 'en-US';
+    this.recognition.interimResults = true;
+    this.recognition.continuous = false;
+
+    this.recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+
+      for (let index = 0; index < event.results.length; index++) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript || '';
+        if (result.isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      const mergedTranscript = (finalTranscript + interimTranscript).trim();
+      if (mergedTranscript) {
+        this.userInput = mergedTranscript;
+      }
+    };
+
+    this.recognition.onerror = () => {
+      this.isListening = false;
+      this.voiceStatusMessage = 'Voice capture failed. Please try again.';
+    };
+
+    this.recognition.onend = () => {
+      this.isListening = false;
+      if (this.isVoiceSupported) {
+        this.voiceStatusMessage = this.userInput.trim()
+          ? 'Voice captured. Review and press send.'
+          : '';
+      }
+    };
+  }
+
+  private processPendingLaunchQuestion(): void {
+    const contextId = sessionStorage.getItem('spruceassist_launch_ctx');
+    if (!contextId) {
+      return;
+    }
+
+    this.financeService.redeemLaunchContext(contextId).subscribe({
+      next: (context: RedeemedLaunchContext) => {
+        sessionStorage.removeItem('spruceassist_launch_ctx');
+        this.processUserQuestion(context.question);
+      },
+      error: () => {
+        sessionStorage.removeItem('spruceassist_launch_ctx');
+      },
+    });
+  }
+
+  private processUserQuestion(question: string): void {
+    this.addMessage(question, 'user');
+    this.isLoading = true;
+
+    this.financeService.getFinancialAdvice(question, true).subscribe({
+      next: (response: FinancialAdviceResponse) => {
+        this.addMessage(
+          this.formatAdviceResponse(response),
+          'assistant',
+          this.formatSourceLabel(response)
+        );
+        this.isLoading = false;
+      },
+      error: () => {
+        setTimeout(() => {
+          const advice = this.generateFinancialAdvice(question);
+          this.addMessage(advice, 'assistant', 'Source: Rule-based fallback');
+          this.isLoading = false;
+        }, 800);
+      },
+    });
+  }
+
+  private formatAdviceResponse(response: FinancialAdviceResponse): string {
+    let formatted = `${response.advice}\n\n`;
     
     if (response.recommendations && response.recommendations.length > 0) {
       response.recommendations.forEach((rec: string, index: number) => {
         formatted += `${index + 1}. ${rec}\n`;
       });
     }
+
+    if (response.relevantData && Object.keys(response.relevantData).length > 0) {
+      formatted += `\n${this.formatContextSection(response.relevantData)}`;
+    }
+
+    if (response.debugReason) {
+      formatted += `\nDebug: ${response.debugReason}\n`;
+    }
     
     return formatted.trim();
   }
 
-  private addMessage(content: string, sender: 'user' | 'assistant'): void {
+  private formatSourceLabel(response: FinancialAdviceResponse): string {
+    const source = response.source || 'unknown';
+    const model = response.model ? ` (${response.model})` : '';
+    return `Source: ${source}${model}`;
+  }
+
+  private formatContextSection(data: Record<string, unknown>): string {
+    let section = 'Context used:\n';
+
+    Object.entries(data).forEach(([rawKey, value]) => {
+      if (this.shouldHideContextKey(rawKey)) {
+        return;
+      }
+
+      const label = this.humanizeKey(rawKey);
+
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          section += `• ${label}: None\n`;
+          return;
+        }
+
+        section += `• ${label}:\n`;
+        value.forEach((item) => {
+          if (item && typeof item === 'object') {
+            const objectItem = item as Record<string, unknown>;
+            const name = typeof objectItem['name'] === 'string' ? objectItem['name'] : 'Item';
+            const detailEntries = Object.entries(objectItem)
+              .filter(([key]) => key !== 'name')
+              .map(([key, itemValue]) => `${this.humanizeKey(key)}: ${this.formatContextValue(key, itemValue)}`)
+              .join(', ');
+            section += `  - ${name}${detailEntries ? ` (${detailEntries})` : ''}\n`;
+          } else {
+            section += `  - ${this.formatContextValue(rawKey, item)}\n`;
+          }
+        });
+        return;
+      }
+
+      if (value && typeof value === 'object') {
+        const objectValue = value as Record<string, unknown>;
+        const objectEntries = Object.entries(objectValue);
+
+        if (objectEntries.length === 0) {
+          section += `• ${label}: None\n`;
+          return;
+        }
+
+        section += `• ${label}:\n`;
+        objectEntries.forEach(([nestedKey, nestedValue]) => {
+          section += `  - ${this.humanizeKey(nestedKey)}: ${this.formatContextValue(nestedKey, nestedValue)}\n`;
+        });
+        return;
+      }
+
+      section += `• ${label}: ${this.formatContextValue(rawKey, value)}\n`;
+    });
+
+    return section.trimEnd();
+  }
+
+  private shouldHideContextKey(key: string): boolean {
+    const normalizedKey = key.replace(/[_\s-]/g, '').toLowerCase();
+    return normalizedKey.includes('savingsgoal');
+  }
+
+  private formatContextValue(key: string, value: unknown): string {
+    if (value === null || value === undefined) {
+      return 'N/A';
+    }
+
+    if (typeof value === 'number') {
+      const keyLower = key.toLowerCase();
+
+      if (keyLower.includes('percent') || keyLower.includes('rate')) {
+        return `${value.toFixed(2)}%`;
+      }
+
+      if (
+        keyLower.includes('balance') ||
+        keyLower.includes('income') ||
+        keyLower.includes('expense') ||
+        keyLower.includes('amount') ||
+        keyLower.includes('allocation') ||
+        keyLower.includes('price') ||
+        keyLower.includes('contribution') ||
+        keyLower.includes('payment')
+      ) {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: 2,
+        }).format(value);
+      }
+
+      return String(value);
+    }
+
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No';
+    }
+
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'object') {
+      const objectValue = value as Record<string, unknown>;
+      return Object.entries(objectValue)
+        .map(([nestedKey, nestedValue]) => `${this.humanizeKey(nestedKey)}: ${this.formatContextValue(nestedKey, nestedValue)}`)
+        .join(', ');
+    }
+
+    return String(value);
+  }
+
+  private humanizeKey(key: string): string {
+    const withSpaces = key
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/_/g, ' ')
+      .trim();
+
+    return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+  }
+
+  private addMessage(content: string, sender: 'user' | 'assistant', source?: string): void {
     this.messages.push({
       id: Date.now().toString(),
       content,
       sender,
       timestamp: new Date(),
+      source,
     });
     this.shouldScrollToBottom = true;
   }

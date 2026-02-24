@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, forkJoin } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { Observable, Observer, forkJoin } from 'rxjs';
+import { delay, map, tap, catchError } from 'rxjs/operators';
+import { throwError } from 'rxjs';
 
 export interface Transaction {
   id: string;
@@ -33,6 +34,17 @@ export interface DashboardData {
   budgets: BudgetItem[];
 }
 
+export interface LaunchContextResponse {
+  contextId: string;
+  launchUrl: string;
+  expiresInSeconds: number;
+}
+
+export interface RedeemedLaunchContext {
+  question: string;
+  issuedAt: string;
+}
+
 interface RawTransaction {
   transaction_id: string;
   user_id: string;
@@ -49,6 +61,10 @@ interface RawTransaction {
   providedIn: 'root',
 })
 export class FinanceService {
+  private readonly defaultApiBaseUrl = 'http://localhost:8000/api';
+  private readonly fallbackApiBaseUrls = ['http://localhost:8050/api', 'http://localhost:8040/api', 'http://localhost:8030/api'];
+  private readonly apiKey = 'dev-api-key-12345';
+
   constructor(private http: HttpClient) {}
 
   private loadRawTransactions(): Observable<RawTransaction[]> {
@@ -61,7 +77,7 @@ export class FinanceService {
     return this.http
       .get<any[]>('assets/mock-data/budgets.json')
       .pipe(
-        map((raw) => {
+        map((raw: any[]) => {
           const userBudgets = raw?.[0]?.budgets || {};
 
           const keyToLabel: { [key: string]: string } = {
@@ -98,7 +114,7 @@ export class FinanceService {
       raw: this.loadRawTransactions(),
       budgetDefs: this.loadBudgetDefinitions(),
     }).pipe(
-      map(({ raw, budgetDefs }) => {
+      map(({ raw, budgetDefs }: { raw: RawTransaction[]; budgetDefs: BudgetItem[] }) => {
         // assume data is ordered by date ascending; if not, sort
         const sorted = [...raw].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -258,9 +274,9 @@ export class FinanceService {
 
   getTransactions(): Observable<Transaction[]> {
     return this.loadRawTransactions().pipe(
-      map((raw) =>
+      map((raw: RawTransaction[]) =>
         raw
-          .map((t): Transaction => ({
+          .map((t: RawTransaction): Transaction => ({
             id: t.transaction_id,
             type: (t.direction === 'credit' ? 'income' : 'expense') as
               | 'income'
@@ -271,14 +287,14 @@ export class FinanceService {
             status: t.status,
             category: t.category,
           }))
-          .sort((a, b) => b.date.getTime() - a.date.getTime())
+          .sort((a: Transaction, b: Transaction) => b.date.getTime() - a.date.getTime())
       )
     );
   }
 
   addTransaction(transaction: Omit<Transaction, 'id'>): Observable<Transaction> {
     // For now, simply echo back the transaction as a mock behavior.
-    return new Observable((observer) => {
+    return new Observable((observer: Observer<Transaction>) => {
       setTimeout(() => {
         const newTransaction: Transaction = {
           ...transaction,
@@ -290,13 +306,65 @@ export class FinanceService {
     });
   }
 
-  getFinancialAdvice(question: string): Observable<any> {
-    const API_URL = 'http://localhost:8000/api/financial-advice';
-    const API_KEY = 'dev-api-key-12345';
-    
-    return this.http.post(API_URL, 
-      { question },
-      { headers: { 'X-API-Key': API_KEY } }
-    );
+  private getApiBaseUrl(): string {
+    return localStorage.getItem('spruceassist_api_base_url') || this.defaultApiBaseUrl;
+  }
+
+  private setApiBaseUrl(apiBaseUrl: string): void {
+    localStorage.setItem('spruceassist_api_base_url', apiBaseUrl);
+  }
+
+  private postWithApiFallback<T>(endpoint: string, body: unknown): Observable<T> {
+    const preferred = this.getApiBaseUrl();
+    const candidates = [
+      preferred,
+      this.defaultApiBaseUrl,
+      ...this.fallbackApiBaseUrls,
+    ].filter((value: string, index: number, array: string[]) => array.indexOf(value) === index);
+
+    const tryPost = (index: number): Observable<T> => {
+      const baseUrl = candidates[index];
+      const authToken = localStorage.getItem('authToken');
+      const headers: Record<string, string> = {
+        'X-API-Key': this.apiKey,
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      return this.http
+        .post<T>(`${baseUrl}${endpoint}`, body, {
+          headers,
+        })
+        .pipe(
+          tap(() => this.setApiBaseUrl(baseUrl)),
+          catchError((error) => {
+            if (index >= candidates.length - 1) {
+              return throwError(() => error);
+            }
+
+            return tryPost(index + 1);
+          })
+        );
+    };
+
+    return tryPost(0);
+  }
+
+  getFinancialAdvice(question: string, forceOpenAI = false): Observable<any> {
+    const query = forceOpenAI ? '?forceOpenAI=true' : '';
+
+    return this.postWithApiFallback<any>(`/financial-advice${query}`, { question });
+  }
+
+  createLaunchContext(question: string): Observable<LaunchContextResponse> {
+    return this.postWithApiFallback<LaunchContextResponse>('/launch-context', { question });
+  }
+
+  redeemLaunchContext(contextId: string): Observable<RedeemedLaunchContext> {
+    return this.postWithApiFallback<RedeemedLaunchContext>('/launch-context/redeem', {
+      contextId,
+    });
   }
 }

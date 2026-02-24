@@ -17,10 +17,13 @@ import { ChatTabComponent } from './components/chat-tab/chat-tab.component';
 export class DashboardComponent implements OnInit {
   currentUser: User | null = null;
   activeTab: 'overview' | 'transactions' = 'overview';
+  isChatFocusMode = false;
 
   constructor(private authService: AuthService, private router: Router) {}
 
   ngOnInit(): void {
+    this.isChatFocusMode = sessionStorage.getItem('spruceassist_chat_focus') === '1';
+
     this.authService.currentUser$.subscribe((user: User | null) => {
       this.currentUser = user;
       if (!user) {
@@ -36,5 +39,10 @@ export class DashboardComponent implements OnInit {
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
+  }
+
+  closeChatFocusMode(): void {
+    this.isChatFocusMode = false;
+    sessionStorage.removeItem('spruceassist_chat_focus');
   }
 }

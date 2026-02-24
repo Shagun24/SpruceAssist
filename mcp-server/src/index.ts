@@ -22,12 +22,220 @@ import {
 import dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
+import { randomUUID, createHmac, timingSafeEqual } from "crypto";
 dotenv.config();
 
 const app: Express = express();
 const PORT = process.env.PORT || 8000;
 const API_KEY = process.env.API_KEY || "dev-api-key-12345";
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:4200"];
+const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:4200";
+const LAUNCH_CONTEXT_TTL_MS = Number(process.env.LAUNCH_CONTEXT_TTL_MS || 5 * 60 * 1000);
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 8 * 60 * 60 * 1000);
+const SESSION_SECRET = process.env.SESSION_SECRET || "dev-session-secret-change-me";
+const LAUNCH_CONTEXT_STORE_FILE = process.env.LAUNCH_CONTEXT_STORE_FILE || path.join(process.cwd(), "data", "launch-contexts.json");
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || "";
+const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || "";
+const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "";
+const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || "2024-10-21";
+
+const isLikelyOpenAIPlatformKey = OPENAI_API_KEY.startsWith("sk-");
+const resolvedAzureApiKey = AZURE_OPENAI_API_KEY || (!isLikelyOpenAIPlatformKey ? OPENAI_API_KEY : "");
+
+const hasOpenAIPlatformConfig = Boolean(OPENAI_API_KEY) && isLikelyOpenAIPlatformKey;
+const hasAzureOpenAIConfig =
+  Boolean(AZURE_OPENAI_ENDPOINT) &&
+  Boolean(resolvedAzureApiKey) &&
+  Boolean(AZURE_OPENAI_DEPLOYMENT);
+const hasAnyLlmConfig = hasOpenAIPlatformConfig || hasAzureOpenAIConfig;
+
+interface LaunchContext {
+  id: string;
+  question: string;
+  createdAt: number;
+  expiresAt: number;
+  used: boolean;
+  redeemedByUserId?: string;
+}
+
+interface SessionTokenPayload {
+  sub: string;
+  email: string;
+  name: string;
+  iat: number;
+  exp: number;
+}
+
+interface AuthenticatedRequest extends Request {
+  sessionUser?: SessionTokenPayload;
+}
+
+const ensureLaunchContextStoreDir = () => {
+  const directory = path.dirname(LAUNCH_CONTEXT_STORE_FILE);
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
+};
+
+const loadLaunchContexts = (): Map<string, LaunchContext> => {
+  try {
+    ensureLaunchContextStoreDir();
+    if (!fs.existsSync(LAUNCH_CONTEXT_STORE_FILE)) {
+      return new Map<string, LaunchContext>();
+    }
+
+    const raw = fs.readFileSync(LAUNCH_CONTEXT_STORE_FILE, "utf-8");
+    const parsed = JSON.parse(raw) as LaunchContext[];
+
+    if (!Array.isArray(parsed)) {
+      return new Map<string, LaunchContext>();
+    }
+
+    return new Map<string, LaunchContext>(parsed.map((item: LaunchContext) => [item.id, item]));
+  } catch {
+    return new Map<string, LaunchContext>();
+  }
+};
+
+const launchContexts = loadLaunchContexts();
+
+const persistLaunchContexts = () => {
+  ensureLaunchContextStoreDir();
+  const serialized = JSON.stringify(Array.from(launchContexts.values()), null, 2);
+  fs.writeFileSync(LAUNCH_CONTEXT_STORE_FILE, serialized, "utf-8");
+};
+
+const encodeBase64Url = (value: string) => Buffer.from(value, "utf-8").toString("base64url");
+const decodeBase64Url = (value: string) => Buffer.from(value, "base64url").toString("utf-8");
+
+const createSessionToken = (payload: SessionTokenPayload): string => {
+  const encodedPayload = encodeBase64Url(JSON.stringify(payload));
+  const signature = createHmac("sha256", SESSION_SECRET).update(encodedPayload).digest("base64url");
+  return `${encodedPayload}.${signature}`;
+};
+
+const verifySessionToken = (token: string): SessionTokenPayload | null => {
+  const [encodedPayload, signature] = token.split(".");
+  if (!encodedPayload || !signature) {
+    return null;
+  }
+
+  const expectedSignature = createHmac("sha256", SESSION_SECRET).update(encodedPayload).digest("base64url");
+  const received = Buffer.from(signature);
+  const expected = Buffer.from(expectedSignature);
+
+  if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(decodeBase64Url(encodedPayload)) as SessionTokenPayload;
+    if (!parsed?.sub || !parsed?.email || typeof parsed?.exp !== "number") {
+      return null;
+    }
+
+    if (parsed.exp <= Date.now()) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const pruneLaunchContexts = () => {
+  const now = Date.now();
+  let updated = false;
+  for (const [id, entry] of launchContexts.entries()) {
+    if (entry.used || entry.expiresAt <= now) {
+      launchContexts.delete(id);
+      updated = true;
+    }
+  }
+
+  if (updated) {
+    persistLaunchContexts();
+  }
+};
+
+const getDefaultApiBaseUrl = () => `http://localhost:${PORT}/api`;
+
+const resolveApiBaseUrlFromRequest = (req: Request): string => {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol =
+    typeof forwardedProto === "string"
+      ? forwardedProto.split(",")[0].trim()
+      : req.protocol || "http";
+
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const hostHeader =
+    typeof forwardedHost === "string" && forwardedHost.trim()
+      ? forwardedHost.split(",")[0].trim()
+      : req.get("host");
+
+  if (!hostHeader) {
+    return getDefaultApiBaseUrl();
+  }
+
+  return `${protocol}://${hostHeader}/api`;
+};
+
+const createLaunchContext = (question: string, apiBaseUrl = getDefaultApiBaseUrl()) => {
+  pruneLaunchContexts();
+
+  const id = randomUUID();
+  const createdAt = Date.now();
+  const expiresAt = createdAt + LAUNCH_CONTEXT_TTL_MS;
+
+  launchContexts.set(id, {
+    id,
+    question,
+    createdAt,
+    expiresAt,
+    used: false,
+  });
+  persistLaunchContexts();
+
+  const launchUrl = `${APP_BASE_URL.replace(/\/$/, "")}/login?ctx=${encodeURIComponent(id)}&apiBase=${encodeURIComponent(apiBaseUrl)}`;
+
+  return {
+    contextId: id,
+    launchUrl,
+    expiresInSeconds: Math.floor(LAUNCH_CONTEXT_TTL_MS / 1000),
+  };
+};
+
+const redeemLaunchContext = (contextId: string, userId: string) => {
+  pruneLaunchContexts();
+
+  const context = launchContexts.get(contextId);
+  if (!context) {
+    throw new Error("Launch context not found or expired");
+  }
+
+  if (context.used) {
+    launchContexts.delete(contextId);
+    throw new Error("Launch context already used");
+  }
+
+  if (context.expiresAt <= Date.now()) {
+    launchContexts.delete(contextId);
+    throw new Error("Launch context expired");
+  }
+
+  context.used = true;
+  context.redeemedByUserId = userId;
+  launchContexts.delete(contextId);
+  persistLaunchContexts();
+
+  return {
+    question: context.question,
+    issuedAt: new Date(context.createdAt).toISOString(),
+  };
+};
 
 // Load mock data from JSON files
 const loadMockData = (filename: string) => {
@@ -45,6 +253,8 @@ const loadMockData = (filename: string) => {
 const budgetsData = loadMockData('budgets.json');
 const savingsData = loadMockData('savings_account.json');
 const spendingData = loadMockData('spending_accounts.json');
+const transactionsData = loadMockData('transactions.json');
+const usersData = loadMockData('users.json');
 
 // Extract budget data
 const userBudgets = budgetsData?.[0]?.budgets || {
@@ -60,13 +270,69 @@ const userBudgets = budgetsData?.[0]?.budgets || {
 
 // Extract savings goals
 const savingsGoals = savingsData?.[0]?.goals || [];
-const savingsBalance = savingsData?.[0]?.current_balance || 2500.75;
-const spendingBalance = spendingData?.[0]?.current_balance || 2500.75;
 
-// Calculate total balance and monthly budget
-const totalBalance = savingsBalance + spendingBalance;
-const monthlyIncome = 8500;
-const monthlyBudgetTotal = Object.values(userBudgets).reduce((sum: number, budget: any) => sum + budget.monthly_limit, 0);
+const userProfile = usersData?.[0]
+  ? {
+      userId: usersData[0].user_id,
+      firstName: usersData[0].first_name,
+      lastName: usersData[0].last_name,
+      preferredName: usersData[0].preferred_name,
+      email: usersData[0].email_id,
+      occupationId: usersData[0].occupation_id,
+      isOverdraftEligible: usersData[0].is_overdraft_eligible,
+    }
+  : null;
+
+const rawTransactions = Array.isArray(transactionsData)
+  ? transactionsData.filter((t: any) => t?.date && typeof t?.amount === 'number')
+  : [];
+
+const sortedTransactions = [...rawTransactions].sort(
+  (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()
+);
+
+const latestTransaction = sortedTransactions.length
+  ? sortedTransactions[sortedTransactions.length - 1]
+  : null;
+
+const latestDate = latestTransaction ? new Date(latestTransaction.date) : new Date();
+const latestMonth = latestDate.getMonth();
+const latestYear = latestDate.getFullYear();
+
+const currentMonthTransactions = sortedTransactions.filter((t: any) => {
+  const date = new Date(t.date);
+  return date.getMonth() === latestMonth && date.getFullYear() === latestYear;
+});
+
+const monthlyIncome = currentMonthTransactions
+  .filter((t: any) => t.direction === 'credit')
+  .reduce((sum: number, t: any) => sum + t.amount, 0);
+
+const monthlyExpense = currentMonthTransactions
+  .filter((t: any) => t.direction === 'debit')
+  .reduce((sum: number, t: any) => sum + t.amount, 0);
+
+const savingsBalance = typeof savingsData?.[0]?.current_balance === 'number'
+  ? savingsData[0].current_balance
+  : Array.isArray(savingsGoals)
+    ? savingsGoals.reduce((sum: number, goal: any) => sum + (goal?.current_amount || 0), 0)
+    : 0;
+
+const spendingBalance = typeof spendingData?.[0]?.current_balance === 'number'
+  ? spendingData[0].current_balance
+  : 0;
+
+const balanceFromAccounts = savingsBalance + spendingBalance;
+const balanceFromTransactions = typeof latestTransaction?.current_balance === 'number'
+  ? latestTransaction.current_balance
+  : 0;
+
+const totalBalance = balanceFromAccounts || balanceFromTransactions || 0;
+
+const monthlyBudgetTotal = Object.values(userBudgets).reduce(
+  (sum: number, budget: any) => sum + (budget?.monthly_limit || 0),
+  0
+);
 
 // API Key Authentication Middleware
 const authenticateApiKey = (req: Request, res: Response, next: NextFunction) => {
@@ -84,6 +350,23 @@ const authenticateApiKey = (req: Request, res: Response, next: NextFunction) => 
     });
   }
   
+  next();
+};
+
+const authenticateUserSession = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized", message: "Missing Bearer token" });
+  }
+
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  const payload = verifySessionToken(token);
+
+  if (!payload) {
+    return res.status(401).json({ error: "Unauthorized", message: "Invalid or expired session" });
+  }
+
+  req.sessionUser = payload;
   next();
 };
 
@@ -105,47 +388,41 @@ interface FinancialData {
 const mockFinancialData: FinancialData = {
   totalBalance: totalBalance,
   monthlyIncome: monthlyIncome,
-  monthlyExpense: monthlyBudgetTotal,
-  recentTransactions: [
-    {
-      id: "1",
-      description: "Salary Deposit",
-      amount: 8500,
-      type: "income",
-      date: "2025-01-20",
-    },
-    {
-      id: "2",
-      description: "Grocery Store",
-      amount: 245.32,
-      type: "expense",
-      date: "2025-01-19",
-    },
-    {
-      id: "3",
-      description: "Gas Station",
-      amount: 65.0,
-      type: "expense",
-      date: "2025-01-18",
-    },
-    {
-      id: "4",
-      description: "Restaurant",
-      amount: 89.5,
-      type: "expense",
-      date: "2025-01-17",
-    },
-  ],
-  expenseBreakdown: {
-    "Dining": userBudgets.dining?.monthly_limit || 500,
-    "Groceries": userBudgets.groceries?.monthly_limit || 600,
-    "Transportation": userBudgets.transportation?.monthly_limit || 300,
-    "Bills": userBudgets.bills?.monthly_limit || 1200,
-    "Entertainment": userBudgets.entertainment?.monthly_limit || 200,
-    "Shopping": userBudgets.shopping?.monthly_limit || 350,
-    "Healthcare": userBudgets.healthcare?.monthly_limit || 200,
-    "Travel": userBudgets.travel?.monthly_limit || 300,
-  },
+  monthlyExpense: monthlyExpense || monthlyBudgetTotal,
+  recentTransactions: [...sortedTransactions]
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 10)
+    .map((t: any) => ({
+      id: t.transaction_id,
+      description: t.description,
+      amount: t.amount,
+      type: t.direction === 'credit' ? 'income' : 'expense',
+      date: t.date,
+    })),
+  expenseBreakdown: (() => {
+    const map = new Map<string, number>();
+
+    currentMonthTransactions
+      .filter((t: any) => t.direction === 'debit')
+      .forEach((t: any) => {
+        map.set(t.category, (map.get(t.category) || 0) + t.amount);
+      });
+
+    if (map.size > 0) {
+      return Object.fromEntries(map.entries());
+    }
+
+    return {
+      "Dining": userBudgets.dining?.monthly_limit || 500,
+      "Groceries": userBudgets.groceries?.monthly_limit || 600,
+      "Transportation": userBudgets.transportation?.monthly_limit || 300,
+      "Bills": userBudgets.bills?.monthly_limit || 1200,
+      "Entertainment": userBudgets.entertainment?.monthly_limit || 200,
+      "Shopping": userBudgets.shopping?.monthly_limit || 350,
+      "Healthcare": userBudgets.healthcare?.monthly_limit || 200,
+      "Travel": userBudgets.travel?.monthly_limit || 300,
+    };
+  })(),
 };
 
 // Initialize MCP Server
@@ -361,6 +638,21 @@ const tools: Tool[] = [
       required: [],
     },
   },
+  {
+    name: "open_spruceassist",
+    description:
+      "Create a secure one-time launch context and open SpruceAssist app to continue this question after login",
+    inputSchema: {
+      type: "object",
+      properties: {
+        question: {
+          type: "string",
+          description: "The user's finance question to carry into SpruceAssist",
+        },
+      },
+      required: ["question"],
+    },
+  },
 ];
 
 // MCP Tool Handlers
@@ -455,6 +747,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
         ],
       };
 
+    case "open_spruceassist":
+      if (!args?.question || typeof args.question !== "string") {
+        throw new Error("question is required");
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                appName: "SpruceAssist",
+                action: "open_app",
+                message: "Continue this question in SpruceAssist after secure login",
+                ...createLaunchContext(args.question.trim()),
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
+      };
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -495,7 +810,7 @@ app.use(cors({
   origin: ALLOWED_ORIGINS,
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'X-API-Key']
+  allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization']
 }));
 app.use(express.json());
 app.use(authenticateApiKey);
@@ -508,6 +823,103 @@ app.get("/health", (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     version: "1.0.0"
   });
+});
+
+app.post("/api/auth/login", (req: Request, res: Response) => {
+  const { email, password } = req.body || {};
+
+  if (!email || !password || typeof email !== "string" || typeof password !== "string") {
+    return res.status(400).json({ error: "email and password are required" });
+  }
+
+  const users = Array.isArray(usersData) ? usersData : [];
+  const matched = users.find(
+    (user: any) =>
+      user?.email_id === email &&
+      user?.login_password === password &&
+      (user?.is_active === undefined || user?.is_active === true)
+  );
+
+  if (!matched) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const name =
+    matched.preferred_name ||
+    [matched.first_name, matched.last_name].filter(Boolean).join(" ") ||
+    matched.email_id;
+
+  const issuedAt = Date.now();
+  const token = createSessionToken({
+    sub: String(matched.user_id || "1"),
+    email: String(matched.email_id || email),
+    name: String(name),
+    iat: issuedAt,
+    exp: issuedAt + SESSION_TTL_MS,
+  });
+
+  res.json({
+    token,
+    expiresAt: new Date(issuedAt + SESSION_TTL_MS).toISOString(),
+    user: {
+      id: String(matched.user_id || "1"),
+      name,
+      email: matched.email_id || email,
+      preferredName: matched.preferred_name || "",
+      mobileNumber: matched.phone || "",
+      address: matched.address
+        ? [
+            matched.address.address_line1,
+            matched.address.address_line2,
+            matched.address.city,
+            matched.address.state,
+            matched.address.postal_code,
+          ]
+            .filter(Boolean)
+            .join(", ")
+        : "",
+      avatar:
+        "https://api.dicebear.com/7.x/avataaars/svg?seed=" +
+        (matched.email_id || email),
+    },
+  });
+});
+
+app.post("/api/launch-context", (req: Request, res: Response) => {
+  const { question } = req.body;
+
+  if (!question || typeof question !== "string" || !question.trim()) {
+    return res.status(400).json({
+      error: "Question is required",
+      message: "Provide a non-empty question string",
+    });
+  }
+
+  const launchContext = createLaunchContext(
+    question.trim(),
+    resolveApiBaseUrlFromRequest(req)
+  );
+  res.json(launchContext);
+});
+
+app.post("/api/launch-context/redeem", authenticateUserSession, (req: AuthenticatedRequest, res: Response) => {
+  const { contextId } = req.body;
+
+  if (!contextId || typeof contextId !== "string") {
+    return res.status(400).json({
+      error: "contextId is required",
+    });
+  }
+
+  try {
+    const redeemed = redeemLaunchContext(contextId, req.sessionUser!.sub);
+    res.json(redeemed);
+  } catch (error) {
+    res.status(400).json({
+      error: "Invalid launch context",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
 });
 
 // API Endpoints for ChatGPT integration
@@ -643,9 +1055,18 @@ app.get("/api/budget-recommendations", (req: Request, res: Response) => {
 // AI-powered financial advice endpoint
 app.post("/api/financial-advice", async (req: Request, res: Response) => {
   const { question } = req.body;
+  const forceOpenAI =
+    String(req.query.forceOpenAI || req.body?.forceOpenAI || "").toLowerCase() === "true";
   
   if (!question) {
     return res.status(400).json({ error: "Question is required" });
+  }
+
+  if (forceOpenAI && !hasAnyLlmConfig) {
+    return res.status(400).json({
+      error: "No LLM provider configured (set OPENAI_API_KEY with sk- key OR set AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_DEPLOYMENT)",
+      source: "rules",
+    });
   }
   
   try {
@@ -655,6 +1076,7 @@ app.post("/api/financial-advice", async (req: Request, res: Response) => {
       monthlyIncome: mockFinancialData.monthlyIncome,
       monthlyExpense: mockFinancialData.monthlyExpense,
       savingsRate: ((mockFinancialData.monthlyIncome - mockFinancialData.monthlyExpense) / mockFinancialData.monthlyIncome * 100).toFixed(2),
+      userProfile,
       budgets: userBudgets,
       savingsGoals: savingsGoals,
       recentTransactions: mockFinancialData.recentTransactions.slice(0, 5),
@@ -662,13 +1084,35 @@ app.post("/api/financial-advice", async (req: Request, res: Response) => {
     };
     
     // Generate contextual advice based on question
-    const advice = generateFinancialAdvice(question.toLowerCase(), financialContext);
+    let source: "openai" | "rules" = "rules";
+    let debugReason: string | undefined;
+    let advice = generateFinancialAdvice(question.toLowerCase(), financialContext);
+
+    if (hasAnyLlmConfig) {
+      const openAiResult = await generateFinancialAdviceWithOpenAI(question, financialContext);
+      if (openAiResult.success && openAiResult.value) {
+        advice = openAiResult.value;
+        source = "openai";
+      } else {
+        debugReason = !openAiResult.success ? openAiResult.reason : "openai_no_value";
+        if (forceOpenAI) {
+          return res.status(502).json({
+            error: "LLM generation failed",
+            source: "rules",
+            debugReason,
+          });
+        }
+      }
+    }
     
     res.json({
       question,
       advice: advice.advice,
       relevantData: advice.data,
       recommendations: advice.recommendations,
+      source,
+      model: source === "openai" ? OPENAI_MODEL : undefined,
+      debugReason,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -678,6 +1122,92 @@ app.post("/api/financial-advice", async (req: Request, res: Response) => {
     });
   }
 });
+
+async function generateFinancialAdviceWithOpenAI(question: string, context: any): Promise<
+  | { success: true; value: { advice: string; recommendations: string[]; data: Record<string, unknown> } }
+  | { success: false; reason: string }
+> {
+  try {
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are SpruceAssist, a financial guidance assistant for a banking app. Use only provided context. Reply as strict JSON with keys: advice (string), recommendations (array of short actionable strings), data (object). Keep advice practical and directly answer user intent.",
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          question,
+          financialContext: context,
+        }),
+      },
+    ];
+
+    const usingAzure = hasAzureOpenAIConfig;
+    const url = usingAzure
+      ? `${AZURE_OPENAI_ENDPOINT.replace(/\/$/, "")}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=${AZURE_OPENAI_API_VERSION}`
+      : "https://api.openai.com/v1/chat/completions";
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(usingAzure
+        ? { "api-key": resolvedAzureApiKey }
+        : { Authorization: `Bearer ${OPENAI_API_KEY}` }),
+    };
+
+    const body = usingAzure
+      ? {
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          messages,
+        }
+      : {
+          model: OPENAI_MODEL,
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          messages,
+        };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      return {
+        success: false,
+        reason: `http_${response.status}: ${errorBody.slice(0, 240)}`,
+      };
+    }
+
+    const data = await response.json() as any;
+    const rawContent = data?.choices?.[0]?.message?.content;
+
+    if (!rawContent || typeof rawContent !== "string") {
+      return {
+        success: false,
+        reason: "empty_model_content",
+      };
+    }
+
+    const parsed = JSON.parse(rawContent);
+    return {
+      success: true,
+      value: {
+        advice: typeof parsed?.advice === "string" ? parsed.advice : "",
+        recommendations: Array.isArray(parsed?.recommendations) ? parsed.recommendations : [],
+        data: parsed?.data && typeof parsed.data === "object" ? parsed.data : {},
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      reason: error instanceof Error ? error.message : "openai_unknown_error",
+    };
+  }
+}
 
 // Helper function to generate contextual financial advice
 function generateFinancialAdvice(question: string, context: any) {
@@ -952,7 +1482,15 @@ function generateFinancialAdvice(question: string, context: any) {
   
 
   // Income and side hustle questions
-  if (q.includes("income") || q.includes("earn more") || q.includes("side hustle") || q.includes("raise") || q.includes("promotion")) {
+  if (
+    (q.includes("income") || q.includes("earn more") || q.includes("side hustle") || q.includes("raise") || q.includes("promotion")) &&
+    !q.includes("house") &&
+    !q.includes("home") &&
+    !q.includes("mortgage") &&
+    !q.includes("rent") &&
+    !q.includes("housing") &&
+    !q.includes("apartment")
+  ) {
     response.advice = `Your current monthly income is $${context.monthlyIncome}. Ways to increase earnings:`;
     response.data = { currentIncome: context.monthlyIncome };
     response.recommendations = [
@@ -1079,47 +1617,49 @@ function generateFinancialAdvice(question: string, context: any) {
   return response;
 }
 
-// MCP Tools endpoint for ChatGPT
-app.get("/mcp/tools", (req: Request, res: Response) => {
-  res.json({
-    tools: [
-      {
-        name: "get_financial_overview",
-        description: "Get total balance, monthly income, expenses, and savings rate",
-        inputSchema: { type: "object", properties: {} }
-      },
-      {
-        name: "get_recent_transactions",
-        description: "Get recent financial transactions",
-        inputSchema: {
-          type: "object",
-          properties: {
-            limit: { type: "number", description: "Number of transactions to return", default: 10 }
-          }
-        }
-      },
-      {
-        name: "get_expense_analysis",
-        description: "Get expense breakdown by category with insights",
-        inputSchema: { type: "object", properties: {} }
-      },
-      {
-        name: "get_budget_recommendations",
-        description: "Get personalized budget recommendations",
-        inputSchema: { type: "object", properties: {} }
+const getMcpTools = () => ([
+  {
+    name: "get_financial_overview",
+    description: "Get total balance, monthly income, expenses, and savings rate",
+    inputSchema: { type: "object", properties: {} }
+  },
+  {
+    name: "get_recent_transactions",
+    description: "Get recent financial transactions",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Number of transactions to return", default: 10 }
       }
-    ]
-  });
-});
+    }
+  },
+  {
+    name: "get_expense_analysis",
+    description: "Get expense breakdown by category with insights",
+    inputSchema: { type: "object", properties: {} }
+  },
+  {
+    name: "get_budget_recommendations",
+    description: "Get personalized budget recommendations",
+    inputSchema: { type: "object", properties: {} }
+  },
+  {
+    name: "open_spruceassist",
+    description: "Create one-time SpruceAssist launch context for secure login handoff",
+    inputSchema: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "Question to continue in SpruceAssist chat" }
+      },
+      required: ["question"]
+    }
+  }
+]);
 
-// MCP Tool execution endpoint
-app.post("/mcp/call", async (req: Request, res: Response) => {
-  const { name, arguments: args } = req.body;
-  
-  try {
-    let result;
-    
-    switch (name) {
+const executeMcpTool = async (name: string, args: any, requestApiBaseUrl?: string) => {
+  let result;
+
+  switch (name) {
       case "get_financial_overview":
         const savingsRate = ((mockFinancialData.monthlyIncome - mockFinancialData.monthlyExpense) / mockFinancialData.monthlyIncome) * 100;
         result = {
@@ -1220,17 +1760,122 @@ app.post("/mcp/call", async (req: Request, res: Response) => {
           }]
         };
         break;
+
+      case "open_spruceassist":
+        if (!args?.question || typeof args.question !== "string") {
+          throw new Error("question is required");
+        }
+
+        result = {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              appName: "SpruceAssist",
+              action: "open_app",
+              message: "Continue this question in SpruceAssist after secure login",
+              ...createLaunchContext(args.question.trim(), requestApiBaseUrl || getDefaultApiBaseUrl())
+            }, null, 2)
+          }]
+        };
+        break;
         
       default:
-        return res.status(400).json({ error: "Unknown tool", tool: name });
+        throw new Error(`Unknown tool: ${name}`);
     }
-    
+
+    return result;
+};
+
+// MCP Tools endpoint for ChatGPT
+app.get("/mcp/tools", (req: Request, res: Response) => {
+  res.json({ tools: getMcpTools() });
+});
+
+// MCP Tool execution endpoint
+app.post("/mcp/call", async (req: Request, res: Response) => {
+  const { name, arguments: args } = req.body;
+
+  try {
+    const result = await executeMcpTool(name, args, resolveApiBaseUrlFromRequest(req));
     res.json(result);
   } catch (error) {
-    res.status(500).json({ 
-      error: "Tool execution failed", 
-      message: error instanceof Error ? error.message : "Unknown error" 
+    res.status(500).json({
+      error: "Tool execution failed",
+      message: error instanceof Error ? error.message : "Unknown error"
     });
+  }
+});
+
+// MCP JSON-RPC endpoint (compatible with MCPJam HTTP transport)
+app.post("/mcp", async (req: Request, res: Response) => {
+  const body = req.body || {};
+  const method = body.method;
+  const id = body.id;
+
+  const jsonRpcSuccess = (result: any) => {
+    if (id === undefined || id === null) {
+      return res.status(204).send();
+    }
+
+    return res.json({
+      jsonrpc: "2.0",
+      id,
+      result,
+    });
+  };
+
+  const jsonRpcError = (code: number, message: string) => {
+    if (id === undefined || id === null) {
+      return res.status(204).send();
+    }
+
+    return res.status(200).json({
+      jsonrpc: "2.0",
+      id,
+      error: { code, message },
+    });
+  };
+
+  try {
+    if (method === "initialize") {
+      return jsonRpcSuccess({
+        protocolVersion: "2024-11-05",
+        capabilities: { tools: {} },
+        serverInfo: {
+          name: "FinanceHub-MCP-Server",
+          version: "1.0.0",
+        },
+      });
+    }
+
+    if (method === "notifications/initialized") {
+      return res.status(204).send();
+    }
+
+    if (method === "ping") {
+      return jsonRpcSuccess({});
+    }
+
+    if (method === "tools/list") {
+      return jsonRpcSuccess({ tools: getMcpTools() });
+    }
+
+    if (method === "tools/call") {
+      const params = body.params || {};
+      const result = await executeMcpTool(
+        params.name,
+        params.arguments || {},
+        resolveApiBaseUrlFromRequest(req)
+      );
+      return jsonRpcSuccess(result);
+    }
+
+    return jsonRpcError(-32601, `Method not found: ${String(method)}`);
+  } catch (error) {
+    return jsonRpcError(
+      -32000,
+      error instanceof Error ? error.message : "MCP endpoint error"
+    );
   }
 });
 

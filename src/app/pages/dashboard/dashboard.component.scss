@@ -5,6 +5,7 @@
   flex-direction: column;
   height: 100vh;
   background-color: $color-bg-app;
+  position: relative;
 }
 
 .dashboard-main {
@@ -134,5 +135,64 @@
     to {
       opacity: 1;
     }
+  }
+}
+
+.chat-focus-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: $z-index-modal-backdrop;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-lg;
+  box-sizing: border-box;
+  background: rgba($color-bg-app, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.chat-focus-modal {
+  width: min(92vw, 560px);
+  height: min(84vh, 820px);
+  max-height: calc(100vh - #{$spacing-lg * 2});
+  background-color: $color-bg-surface;
+  border: 1px solid rgba($color-text-primary, 0.1);
+  border-radius: $border-radius-xl;
+  overflow: hidden;
+  position: relative;
+  z-index: $z-index-modal;
+  animation: chatModalIn 280ms ease-out;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.chat-focus-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba($color-text-primary, 0.12);
+  color: $color-text-primary;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+  transition: $transition-base;
+
+  &:hover {
+    background: rgba($color-text-primary, 0.2);
+  }
+}
+
+@keyframes chatModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

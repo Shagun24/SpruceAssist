@@ -87,6 +87,8 @@
 .message {
   display: flex;
   gap: 12px;
+  max-width: 100%;
+  min-width: 0;
   animation: slideIn 0.3s ease-out;
 
   &.user-message {
@@ -128,6 +130,8 @@
   flex-direction: column;
   gap: 6px;
   max-width: 70%;
+  min-width: 0;
+  overflow: hidden;
   padding: 14px 18px;
   border-radius: 16px;
   backdrop-filter: blur(10px);
@@ -138,13 +142,32 @@
   color: #E8EEFF;
   font-size: 14px;
   line-height: 1.6;
-  white-space: pre-line;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .message-time {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.5);
   align-self: flex-end;
+}
+
+.message-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.message-source {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: right;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .typing-indicator {
@@ -174,6 +197,12 @@
   padding: 20px 24px;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.voice-status {
+  margin-bottom: 10px;
+  color: #9FA8C0;
+  font-size: 12px;
 }
 
 .suggested-prompts {
@@ -265,6 +294,37 @@
     font-size: 18px;
     display: block;
     transform: rotate(0deg);
+  }
+}
+
+.voice-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #E8EEFF;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+    transform: translateY(-1px);
+  }
+
+  &.listening {
+    background: rgba(108, 139, 255, 0.22);
+    border-color: rgba(108, 139, 255, 0.45);
+    box-shadow: 0 0 0 3px rgba(108, 139, 255, 0.12);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 }
 

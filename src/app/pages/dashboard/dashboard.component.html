@@ -40,7 +40,16 @@
     </div>
 
     <!-- AI Chat Sidebar on the right -->
-    <div class="chat-sidebar">
+    <div class="chat-sidebar" *ngIf="!isChatFocusMode">
+      <app-chat-tab></app-chat-tab>
+    </div>
+  </div>
+
+  <div class="chat-focus-overlay" *ngIf="isChatFocusMode">
+    <div class="chat-focus-modal">
+      <button class="chat-focus-close" (click)="closeChatFocusMode()" aria-label="Close chat focus mode">
+        &times;
+      </button>
       <app-chat-tab></app-chat-tab>
     </div>
   </div>
